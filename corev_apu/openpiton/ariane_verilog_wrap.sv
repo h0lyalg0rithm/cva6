@@ -29,6 +29,9 @@ module ariane_verilog_wrap
   parameter logic [63:0]               ExceptionAddress      = 64'h808,
   parameter bit                        EnableAccelerator     = 0,
   parameter bit                        SupervisorModeEn      = 1,
+  parameter bit                        TvalEn                = 1,
+  parameter bit                        DebugEn               = 1,
+  parameter bit                        NonIdemPotenceEn      = 0,
   // RISCV extensions
   parameter bit                        FpuEn                 = 1,
   parameter bit                        F16En                 = 0,
@@ -44,6 +47,7 @@ module ariane_verilog_wrap
   parameter bit                        ZiCondExtEn           = 0,
   parameter bit                        FExtEn                = 0,
   parameter bit                        DExtEn                = 0,
+  parameter bit                        RVUEn                 = 1,
   // extended
   parameter bit                        FpPresent             = 0,
   parameter int unsigned               FLen                  = 0,
@@ -61,6 +65,7 @@ module ariane_verilog_wrap
   parameter int unsigned               AxiDataWidth          = 64,
   parameter int unsigned               AxiIdWidth            = 4,
   parameter int unsigned               AxiUserWidth          = 64,
+  parameter int unsigned               AxiBurstWriteEn       = 0,
   // PMA configuration
   // idempotent region
   parameter int unsigned               NrNonIdempotentRules  =  1,
@@ -194,7 +199,7 @@ module ariane_verilog_wrap
   // ariane instance
   /////////////////////////////
 
-  localparam cva6_cfg_t CVA6Cfg = '{
+  localparam cva6_user_cfg_t cva6_user_cfg = '{
     NrCommitPorts:          NrCommitPorts,
     AxiAddrWidth:           AxiAddrWidth,
     AxiDataWidth:           AxiDataWidth,
@@ -206,32 +211,26 @@ module ariane_verilog_wrap
     XF16ALT:                F16AltEn,
     XF8:                    F8En,
     RVA:                    AExtEn,
+    RVB:                    BExtEn,
     RVV:                    VExtEn,
     RVC:                    CExtEn,
     RVZCB:                  ZcbExtEn,
     XFVec:                  FVecEn,
     CvxifEn:                CvxifEn,
     ZiCondExtEn:            ZiCondExtEn,
-    RVF:                    FExtEn,
-    RVD:                    DExtEn,
-    FpPresent:              FpPresent,
-    NSX:                    NSXEn,
-    FLen:                   FLen,
-    RVFVec:                 RVFVecEn,
-    XF16Vec:                XF16VecEn,
-    XF16ALTVec:             XF16ALTVecEn,
-    XF8Vec:                 XF8VecEn,
-    NrRgprPorts:            NrRgprPorts,
-    NrWbPorts:              NrWbPorts,
-    EnableAccelerator:      EnableAccelerator,
     RVS:                    SupervisorModeEn,
+    RVU:                    RVUEn,
     HaltAddress:            HaltAddress,
     ExceptionAddress:       ExceptionAddress,
     RASDepth:               RASDepth,
     BTBEntries:             BTBEntries,
     BHTEntries:             BHTEntries,
     DmBaseAddress:          DmBaseAddress,
+    TvalEn:                 TvalEn,
     NrPMPEntries:           NrPMPEntries,
+    PMPCfgRstVal:           {16{64'h0}},
+    PMPAddrRstVal:          {16{64'h0}},
+    PMPEntryReadOnly:       16'd0,
     NOCType:                SwapEndianess ? NOC_TYPE_L15_BIG_ENDIAN : NOC_TYPE_AXI4_ATOP,
     NrNonIdempotentRules:   NrNonIdempotentRules,
     NonIdempotentAddrBase:  NonIdempotentAddrBase,
@@ -242,11 +241,13 @@ module ariane_verilog_wrap
     NrCachedRegionRules:    NrCachedRegionRules,
     CachedRegionAddrBase:   CachedRegionAddrBase,
     CachedRegionLength:     CachedRegionLength,
-    MaxOutstandingStores:   MaxOutstandingStores
+    MaxOutstandingStores:   MaxOutstandingStores,
+    DebugEn:                DebugEn,
+    AxiBurstWriteEn:        AxiBurstWriteEn
   };
 
   ariane #(
-    .CVA6Cfg    ( CVA6Cfg                  ),
+    .CVA6Cfg    ( build_config_pkg::build_config(cva6_user_cfg) ),
     .noc_req_t  ( wt_cache_pkg::l15_req_t  ),
     .noc_resp_t ( wt_cache_pkg::l15_rtrn_t )
   ) ariane (

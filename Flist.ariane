@@ -62,6 +62,8 @@ core/cache_subsystem/axi_adapter.sv
 core/alu.sv
 core/fpu_wrap.sv
 corev_apu/src/ariane.sv
+core/include/build_config_pkg.sv
+core/cva6_rvfi_probes.sv
 core/cva6.sv
 core/branch_unit.sv
 core/compressed_decoder.sv
