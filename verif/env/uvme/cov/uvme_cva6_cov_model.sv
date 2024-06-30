@@ -30,9 +30,13 @@ class uvme_cva6_cov_model_c extends uvm_component;
    uvme_cva6_cntxt_c  cntxt;
 
    // Components
-   uvme_cvxif_covg_c        cvxif_covg;
-   uvme_isa_cov_model_c     isa_covg;
-   uvme_cva6_config_covg_c  config_covg;
+   uvme_cvxif_covg_c                 cvxif_covg;
+   uvme_isa_cov_model_c              isa_covg;
+   uvme_cva6_config_covg_c           config_covg;
+   uvme_illegal_instr_cov_model_c    illegal_covg;
+   uvme_exception_cov_model_c        exception_covg;
+   uvme_axi_covg_c                   axi_covg;
+   uvme_axi_ext_covg_c               axi_ext_covg;
    
    //
    uvm_analysis_export#(uvma_clknrst_mon_trn_c)  reset_export;
@@ -104,7 +108,11 @@ function void uvme_cva6_cov_model_c::build_phase(uvm_phase phase);
 
    if (cfg.cov_isa_model_enabled) begin
       isa_covg = uvme_isa_cov_model_c::type_id::create("isa_covg", this);
+      illegal_covg = uvme_illegal_instr_cov_model_c::type_id::create("illegal_covg", this);
+      exception_covg = uvme_exception_cov_model_c::type_id::create("exception_covg", this);
       uvm_config_db#(uvme_cva6_cfg_c)::set(this, "isa_covg", "cfg", cfg);
+      uvm_config_db#(uvme_cva6_cfg_c)::set(this, "illegal_covg", "cfg", cfg);
+      uvm_config_db#(uvme_cva6_cfg_c)::set(this, "exception_covg", "cfg", cfg);
    end
 
    uvm_config_db#(uvme_cva6_cntxt_c)::set(this, "cvxif_covg", "cntxt", cntxt);
@@ -112,6 +120,15 @@ function void uvme_cva6_cov_model_c::build_phase(uvm_phase phase);
    config_covg = uvme_cva6_config_covg_c::type_id::create("config_covg", this);
    uvm_config_db#(uvme_cva6_cfg_c)::set(this, "config_covg", "cfg", cfg);
    uvm_config_db#(uvme_cva6_cntxt_c)::set(this, "config_covg", "cntxt", cntxt);
+
+   if(cfg.axi_cfg.cov_model_enabled) begin
+      axi_covg   = uvme_axi_covg_c::type_id::create("axi_covg", this);
+      axi_ext_covg   = uvme_axi_ext_covg_c::type_id::create("axi_ext_covg", this);
+      uvm_config_db#(uvme_cva6_cfg_c)::set(this, "axi_covg", "cfg", cfg);
+      uvm_config_db#(uvme_cva6_cntxt_c)::set(this, "axi_covg", "cntxt", cntxt);
+      uvm_config_db#(uvme_cva6_cfg_c)::set(this, "axi_ext_covg", "cfg", cfg);
+      uvm_config_db#(uvme_cva6_cntxt_c)::set(this, "axi_ext_covg", "cntxt", cntxt);
+   end
 
 endfunction : build_phase
 

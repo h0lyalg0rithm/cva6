@@ -55,7 +55,7 @@ covergroup cg_cva6_config(string name) with function sample();
       bins VExtEn ={0};
    }
    cp_ZiCondExtEn : coverpoint cva6_config_pkg::CVA6ConfigZiCondExtEn {
-      bins ZiCondExtEn ={1};
+      bins ZiCondExtEn ={0};
    }
    cp_AxiIdWidth : coverpoint cva6_config_pkg::CVA6ConfigAxiIdWidth {
       bins AxiIdWidth ={4};
@@ -115,13 +115,13 @@ covergroup cg_cva6_config(string name) with function sample();
       bins FPGAEn ={0};
    }
    cp_NrLoadPipeRegs : coverpoint cva6_config_pkg::CVA6ConfigNrLoadPipeRegs {
-      bins NrLoadPipeRegs ={1};
+      bins NrLoadPipeRegs ={0};
    }
    cp_NrStorePipeRegs : coverpoint cva6_config_pkg::CVA6ConfigNrStorePipeRegs {
       bins NrStorePipeRegs ={0};
    }
    cp_NrLoadBufEntries : coverpoint cva6_config_pkg::CVA6ConfigNrLoadBufEntries {
-      bins NrLoadBufEntries ={2};
+      bins NrLoadBufEntries ={1};
    }
    cp_InstrTlbEntries : coverpoint cva6_config_pkg::CVA6ConfigInstrTlbEntries {
       bins InstrTlbEntries ={2};
@@ -130,13 +130,13 @@ covergroup cg_cva6_config(string name) with function sample();
       bins DataTlbEntries ={2};
    }
    cp_RASDepth : coverpoint cva6_config_pkg::CVA6ConfigRASDepth {
-      bins RASDepth ={0};
+      bins RASDepth ={2};
    }
    cp_BTBEntries : coverpoint cva6_config_pkg::CVA6ConfigBTBEntries {
       bins BTBEntries ={0};
    }
    cp_BHTEntries : coverpoint cva6_config_pkg::CVA6ConfigBHTEntries {
-      bins BHTEntries ={0};
+      bins BHTEntries ={32};
    }
    cp_NrPMPEntries : coverpoint cva6_config_pkg::CVA6ConfigNrPMPEntries {
       bins NrPMPEntries ={8};
@@ -152,43 +152,6 @@ covergroup cg_cva6_config(string name) with function sample();
    }
    cp_RvfiTrace : coverpoint cva6_config_pkg::CVA6ConfigRvfiTrace {
       bins RvfiTrace ={1};
-   }
-   // Extended
-   cp_RVF : coverpoint cva6_config_pkg::cva6_cfg.RVF {
-      bins RVF ={0};
-   }
-   cp_RVD : coverpoint cva6_config_pkg::cva6_cfg.RVD {
-      bins RVD ={0};
-   }
-   cp_FpPresent : coverpoint cva6_config_pkg::cva6_cfg.FpPresent {
-      bins FpPresent ={0};
-   }
-   cp_NSX : coverpoint cva6_config_pkg::cva6_cfg.NSX {
-      bins NSX ={0};
-   }
-   cp_FLen : coverpoint cva6_config_pkg::cva6_cfg.FLen {
-      bins FLen ={0};
-   }
-   cp_RVFVec : coverpoint cva6_config_pkg::cva6_cfg.RVFVec {
-      bins RVFVec ={0};
-   }
-   cp_XF16Vec : coverpoint cva6_config_pkg::cva6_cfg.XF16Vec {
-      bins XF16Vec ={0};
-   }
-   cp_XF16ALTVec : coverpoint cva6_config_pkg::cva6_cfg.XF16ALTVec {
-      bins XF16ALTVec ={0};
-   }
-   cp_XF8Vec : coverpoint cva6_config_pkg::cva6_cfg.XF8Vec {
-      bins XF8Vec ={0};
-   }
-   cp_NrRgprPorts : coverpoint cva6_config_pkg::cva6_cfg.NrRgprPorts {
-      bins NrRgprPorts ={0};
-   }
-   cp_NrWbPorts : coverpoint cva6_config_pkg::cva6_cfg.NrWbPorts {
-      bins NrWbPorts ={0};
-   }
-   cp_EnableAccelerator : coverpoint cva6_config_pkg::cva6_cfg.EnableAccelerator {
-      bins EnableAccelerator ={0};
    }
    cp_HaltAddress : coverpoint cva6_config_pkg::cva6_cfg.HaltAddress {
       bins HaltAddress ={64'h800};

@@ -24,38 +24,13 @@ import uvm_pkg::*;
 
 import "DPI-C" function read_elf(input string filename);
 import "DPI-C" function byte get_section(output longint address, output longint len);
-import "DPI-C" context function void read_section(input longint address, inout byte buffer[]);
+import "DPI-C" context function void read_section_sv(input longint address, inout byte buffer[]);
 
 module ariane_tb;
 
     // cva6 configuration
-    localparam config_pkg::cva6_cfg_t CVA6Cfg = cva6_config_pkg::cva6_cfg;
+    localparam config_pkg::cva6_cfg_t CVA6Cfg = build_config_pkg::build_config(cva6_config_pkg::cva6_cfg);
     localparam bit IsRVFI = bit'(cva6_config_pkg::CVA6ConfigRvfiTrace);
-    localparam type rvfi_instr_t = struct packed {
-        logic [config_pkg::NRET-1:0]                  valid;
-        logic [config_pkg::NRET*64-1:0]               order;
-        logic [config_pkg::NRET*config_pkg::ILEN-1:0] insn;
-        logic [config_pkg::NRET-1:0]                  trap;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      cause;
-        logic [config_pkg::NRET-1:0]                  halt;
-        logic [config_pkg::NRET-1:0]                  intr;
-        logic [config_pkg::NRET*2-1:0]                mode;
-        logic [config_pkg::NRET*2-1:0]                ixl;
-        logic [config_pkg::NRET*5-1:0]                rs1_addr;
-        logic [config_pkg::NRET*5-1:0]                rs2_addr;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      rs1_rdata;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      rs2_rdata;
-        logic [config_pkg::NRET*5-1:0]                rd_addr;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      rd_wdata;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_rdata;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_wdata;
-        logic [config_pkg::NRET*riscv::VLEN-1:0]      mem_addr;
-        logic [config_pkg::NRET*riscv::PLEN-1:0]      mem_paddr;
-        logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_rmask;
-        logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_wmask;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_rdata;
-        logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_wdata;
-    };
 
     static uvm_cmdline_processor uvcl = uvm_cmdline_processor::get_inst();
 
@@ -78,38 +53,17 @@ module ariane_tb;
     ariane_testharness #(
         .CVA6Cfg ( CVA6Cfg ),
         .IsRVFI ( IsRVFI ),
-        .rvfi_instr_t ( rvfi_instr_t ),
         //
         .NUM_WORDS         ( NUM_WORDS ),
         .InclSimDTM        ( 1'b1      ),
-        .StallRandomOutput ( 1'b1      ),
-        .StallRandomInput  ( 1'b1      )
+        .StallRandomOutput ( 1'b0      ),
+        .StallRandomInput  ( 1'b0      )
     ) dut (
         .clk_i,
         .rst_ni,
         .rtc_i,
         .exit_o
     );
-
-`ifdef SPIKE_TANDEM
-    spike #(
-        .CVA6Cfg ( CVA6Cfg ),
-        .Size ( NUM_WORDS * 8 )
-    ) i_spike (
-        .clk_i,
-        .rst_ni,
-        .clint_tick_i   ( rtc_i                               ),
-        .commit_instr_i ( dut.i_ariane.commit_instr_id_commit ),
-        .commit_ack_i   ( dut.i_ariane.commit_ack             ),
-        .exception_i    ( dut.i_ariane.ex_commit              ),
-        .waddr_i        ( dut.i_ariane.waddr_commit_id        ),
-        .wdata_i        ( dut.i_ariane.wdata_commit_id        ),
-        .priv_lvl_i     ( dut.i_ariane.priv_lvl               )
-    );
-    initial begin
-        $display("Running binary in tandem mode");
-    end
-`endif
 
     // Clock process
     initial begin
@@ -156,9 +110,9 @@ module ariane_tb;
     // Note that we are loosing the capabilities to use risc-fesvr though
     initial begin
         automatic logic [7:0][7:0] mem_row;
-        longint address, len;
+        longint address, load_address, last_load_address, len;
         byte buffer[];
-        void'(uvcl.get_arg_value("+PRELOAD=", binary));
+        void'(uvcl.get_arg_value("+elf_file=", binary));
 
         if (binary != "") begin
             `uvm_info( "Core Test", $sformatf("Preloading ELF: %s", binary), UVM_LOW)
@@ -167,13 +121,13 @@ module ariane_tb;
             // wait with preloading, otherwise randomization will overwrite the existing value
             wait(clk_i);
 
+            last_load_address = 'hFFFFFFFF;
             // while there are more sections to process
             while (get_section(address, len)) begin
                 automatic int num_words = (len+7)/8;
-                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len),
-UVM_LOW)
+                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len), UVM_LOW)
                 buffer = new [num_words*8];
-                void'(read_section(address, buffer));
+                void'(read_section_sv(address, buffer));
                 // preload memories
                 // 64-bit
                 for (int i = 0; i < num_words; i++) begin
@@ -181,7 +135,14 @@ UVM_LOW)
                     for (int j = 0; j < 8; j++) begin
                         mem_row[j] = buffer[i*8 + j];
                     end
-                    `MAIN_MEM((address[23:0] >> 3) + i) = mem_row;
+                    load_address = (address[23:0] >> 3) + i;
+                    if (load_address != last_load_address) begin
+                        `MAIN_MEM(load_address) = mem_row;
+                        last_load_address = load_address;
+                    end else begin
+                        `uvm_info( "Debug info", $sformatf(" Address: %x Already Loaded! ELF file might have less than 64 bits granularity on segments.", load_address), UVM_LOW)
+                    end
+
                 end
             end
         end

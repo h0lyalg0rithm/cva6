@@ -48,26 +48,39 @@ module instr_queue
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
+    // Subsystem Clock - SUBSYSTEM
     input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
     input logic rst_ni,
+    // Fetch flush request - CONTROLLER
     input logic flush_i,
+    // Instruction - instr_realign
     input logic [ariane_pkg::INSTR_PER_FETCH-1:0][31:0] instr_i,
+    // Instruction address - instr_realign
     input logic [ariane_pkg::INSTR_PER_FETCH-1:0][riscv::VLEN-1:0] addr_i,
+    // Instruction is valid - instr_realign
     input logic [ariane_pkg::INSTR_PER_FETCH-1:0] valid_i,
+    // Handshake’s ready with CACHE - CACHE
     output logic ready_o,
+    // Indicates instructions consummed, or popped by ID_STAGE - FRONTEND
     output logic [ariane_pkg::INSTR_PER_FETCH-1:0] consumed_o,
-    // we've encountered an exception, at this point the only possible exceptions are page-table faults
+    // Exception (which is page-table fault) - CACHE
     input ariane_pkg::frontend_exception_t exception_i,
+    // Exception address - CACHE
     input logic [riscv::VLEN-1:0] exception_addr_i,
-    // branch predict
+    // Branch predict - FRONTEND
     input logic [riscv::VLEN-1:0] predict_address_i,
+    // Instruction predict address - FRONTEND
     input ariane_pkg::cf_t [ariane_pkg::INSTR_PER_FETCH-1:0] cf_type_i,
-    // replay instruction because one of the FIFO was already full
+    // Replay instruction because one of the FIFO was  full - FRONTEND
     output logic replay_o,
-    output logic [riscv::VLEN-1:0] replay_addr_o,  // address at which to replay this instruction
-    // to processor backend
+    // Address at which to replay the fetch - FRONTEND
+    output logic [riscv::VLEN-1:0] replay_addr_o,
+    // Handshake’s data with ID_STAGE - ID_STAGE
     output ariane_pkg::fetch_entry_t fetch_entry_o,
+    // Handshake’s valid with ID_STAGE - ID_STAGE
     output logic fetch_entry_valid_o,
+    // Handshake’s ready with ID_STAGE - ID_STAGE
     input logic fetch_entry_ready_i
 );
 
@@ -282,9 +295,10 @@ ariane_pkg::FETCH_FIFO_DEPTH
           end
           fetch_entry_o.instruction = instr_data_out[i].instr;
           fetch_entry_o.ex.valid = instr_data_out[i].ex != ariane_pkg::FE_NONE;
-          fetch_entry_o.ex.tval = {
-            {(riscv::XLEN - riscv::VLEN) {1'b0}}, instr_data_out[i].ex_vaddr
-          };
+          if (CVA6Cfg.TvalEn)
+            fetch_entry_o.ex.tval = {
+              {(riscv::XLEN - riscv::VLEN) {1'b0}}, instr_data_out[i].ex_vaddr
+            };
           fetch_entry_o.branch_predict.cf = instr_data_out[i].cf;
           pop_instr[i] = fetch_entry_valid_o & fetch_entry_ready_i;
         end
@@ -309,8 +323,9 @@ ariane_pkg::FETCH_FIFO_DEPTH
       end else begin
         fetch_entry_o.ex.cause = riscv::INSTR_PAGE_FAULT;
       end
-      fetch_entry_o.ex.tval = {{64 - riscv::VLEN{1'b0}}, instr_data_out[0].ex_vaddr};
-
+      if (CVA6Cfg.TvalEn)
+        fetch_entry_o.ex.tval = {{64 - riscv::VLEN{1'b0}}, instr_data_out[0].ex_vaddr};
+      else fetch_entry_o.ex.tval = '0;
       fetch_entry_o.branch_predict.predict_address = address_out;
       fetch_entry_o.branch_predict.cf = instr_data_out[0].cf;
 

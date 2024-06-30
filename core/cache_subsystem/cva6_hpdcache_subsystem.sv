@@ -19,6 +19,12 @@ module cva6_hpdcache_subsystem
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
     parameter int NumPorts = 4,
     parameter int NrHwPrefetchers = 4,
+    // AXI types
+    parameter type axi_ar_chan_t = logic,
+    parameter type axi_aw_chan_t = logic,
+    parameter type axi_w_chan_t = logic,
+    parameter type axi_b_chan_t = logic,
+    parameter type axi_r_chan_t = logic,
     parameter type noc_req_t = logic,
     parameter type noc_resp_t = logic,
     parameter type cmo_req_t = logic,
@@ -87,8 +93,6 @@ module cva6_hpdcache_subsystem
 );
   //  }}}
 
-  `include "axi/typedef.svh"
-
   //  I$ instantiation
   //  {{{
   logic icache_miss_valid, icache_miss_ready;
@@ -135,7 +139,7 @@ module cva6_hpdcache_subsystem
   //    NumPorts + 1: Hardware Memory Prefetcher (hwpf)
   localparam int HPDCACHE_NREQUESTERS = NumPorts + 2;
 
-  typedef logic [CVA6Cfg.AxiAddrWidth-1:0] hpdcache_mem_addr_t;
+  typedef logic [riscv::PLEN-1:0] hpdcache_mem_addr_t;
   typedef logic [ariane_pkg::MEM_TID_WIDTH-1:0] hpdcache_mem_id_t;
   typedef logic [CVA6Cfg.AxiDataWidth-1:0] hpdcache_mem_data_t;
   typedef logic [CVA6Cfg.AxiDataWidth/8-1:0] hpdcache_mem_be_t;
@@ -374,13 +378,10 @@ module cva6_hpdcache_subsystem
   );
 
   hpdcache #(
-      .NREQUESTERS          (HPDCACHE_NREQUESTERS),
-      .HPDcacheMemIdWidth   (ariane_pkg::MEM_TID_WIDTH),
-      .HPDcacheMemDataWidth (CVA6Cfg.AxiDataWidth),
-      .hpdcache_mem_req_t   (hpdcache_mem_req_t),
-      .hpdcache_mem_req_w_t (hpdcache_mem_req_w_t),
-      .hpdcache_mem_resp_r_t(hpdcache_mem_resp_r_t),
-      .hpdcache_mem_resp_w_t(hpdcache_mem_resp_w_t)
+      .NREQUESTERS         (HPDCACHE_NREQUESTERS),
+      .HPDcacheMemAddrWidth(riscv::PLEN),
+      .HPDcacheMemIdWidth  (ariane_pkg::MEM_TID_WIDTH),
+      .HPDcacheMemDataWidth(CVA6Cfg.AxiDataWidth)
   ) i_hpdcache (
       .clk_i,
       .rst_ni,
@@ -472,17 +473,6 @@ module cva6_hpdcache_subsystem
 
   //  AXI arbiter instantiation
   //  {{{
-  typedef logic [CVA6Cfg.AxiAddrWidth-1:0] axi_addr_t;
-  typedef logic [CVA6Cfg.AxiDataWidth-1:0] axi_data_t;
-  typedef logic [CVA6Cfg.AxiDataWidth/8-1:0] axi_strb_t;
-  typedef logic [CVA6Cfg.AxiIdWidth-1:0] axi_id_t;
-  typedef logic [CVA6Cfg.AxiUserWidth-1:0] axi_user_t;
-  `AXI_TYPEDEF_AW_CHAN_T(axi_aw_chan_t, axi_addr_t, axi_id_t, axi_user_t)
-  `AXI_TYPEDEF_W_CHAN_T(axi_w_chan_t, axi_data_t, axi_strb_t, axi_user_t)
-  `AXI_TYPEDEF_B_CHAN_T(axi_b_chan_t, axi_id_t, axi_user_t)
-  `AXI_TYPEDEF_AR_CHAN_T(axi_ar_chan_t, axi_addr_t, axi_id_t, axi_user_t)
-  `AXI_TYPEDEF_R_CHAN_T(axi_r_chan_t, axi_data_t, axi_id_t, axi_user_t)
-
   cva6_hpdcache_subsystem_axi_arbiter #(
       .HPDcacheMemIdWidth   (ariane_pkg::MEM_TID_WIDTH),
       .HPDcacheMemDataWidth (CVA6Cfg.AxiDataWidth),
@@ -498,6 +488,8 @@ module cva6_hpdcache_subsystem
       .axi_ar_chan_t(axi_ar_chan_t),
       .axi_aw_chan_t(axi_aw_chan_t),
       .axi_w_chan_t (axi_w_chan_t),
+      .axi_b_chan_t (axi_b_chan_t),
+      .axi_r_chan_t (axi_r_chan_t),
       .axi_req_t    (noc_req_t),
       .axi_rsp_t    (noc_resp_t)
   ) i_axi_arbiter (

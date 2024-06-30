@@ -5,14 +5,23 @@ module mult
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
+    // Subsystem Clock - SUBSYSTEM
     input  logic                             clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
     input  logic                             rst_ni,
+    // Flush - CONTROLLER
     input  logic                             flush_i,
+    // FU data needed to execute instruction - ISSUE_STAGE
     input  fu_data_t                         fu_data_i,
+    // Mult instruction is valid - ISSUE_STAGE
     input  logic                             mult_valid_i,
+    // Mult result - ISSUE_STAGE
     output riscv::xlen_t                     result_o,
+    // Mult result is valid - ISSUE_STAGE
     output logic                             mult_valid_o,
+    // Mutl is ready - ISSUE_STAGE
     output logic                             mult_ready_o,
+    // Mult transaction ID - ISSUE_STAGE
     output logic         [TRANS_ID_BITS-1:0] mult_trans_id_o
 );
   logic mul_valid;
@@ -89,7 +98,7 @@ module mult
     // we've go a new division operation
     if (mult_valid_i && fu_data_i.operation inside {DIV, DIVU, DIVW, DIVUW, REM, REMU, REMW, REMUW}) begin
       // is this a word operation?
-      if (fu_data_i.operation inside {DIVW, DIVUW, REMW, REMUW}) begin
+      if (riscv::IS_XLEN64 && (fu_data_i.operation == DIVW || fu_data_i.operation == DIVUW || fu_data_i.operation == REMW || fu_data_i.operation == REMUW)) begin
         // yes so check if we should sign extend this is only done for a signed operation
         if (div_signed) begin
           operand_a = sext32(fu_data_i.operand_a[31:0]);
@@ -134,7 +143,7 @@ module mult
 
   // Result multiplexer
   // if it was a signed word operation the bit will be set and the result will be sign extended accordingly
-  assign div_result = (word_op_q) ? sext32(result) : result;
+  assign div_result = (riscv::IS_XLEN64 && word_op_q) ? sext32(result) : result;
 
   // ---------------------
   // Registers

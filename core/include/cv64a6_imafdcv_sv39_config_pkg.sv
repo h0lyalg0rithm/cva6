@@ -24,6 +24,7 @@ package cva6_config_pkg;
   localparam CVA6ConfigAExtEn = 1;
   localparam CVA6ConfigBExtEn = 0;
   localparam CVA6ConfigVExtEn = 1;
+  localparam CVA6ConfigZiCondExtEn = 0;
 
   localparam CVA6ConfigAxiIdWidth = 4;
   localparam CVA6ConfigAxiAddrWidth = 64;
@@ -61,6 +62,8 @@ package cva6_config_pkg;
   localparam CVA6ConfigBTBEntries = 32;
   localparam CVA6ConfigBHTEntries = 128;
 
+  localparam CVA6ConfigTvalEn = 1;
+
   localparam CVA6ConfigNrPMPEntries = 8;
 
   localparam CVA6ConfigPerfCounterEn = 1;
@@ -71,7 +74,7 @@ package cva6_config_pkg;
 
   localparam CVA6ConfigRvfiTrace = 1;
 
-  localparam config_pkg::cva6_cfg_t cva6_cfg = '{
+  localparam config_pkg::cva6_user_cfg_t cva6_cfg = '{
       NrCommitPorts: unsigned'(CVA6ConfigNrCommitPorts),
       AxiAddrWidth: unsigned'(CVA6ConfigAxiAddrWidth),
       AxiDataWidth: unsigned'(CVA6ConfigAxiDataWidth),
@@ -83,36 +86,26 @@ package cva6_config_pkg;
       XF16ALT: bit'(CVA6ConfigF16AltEn),
       XF8: bit'(CVA6ConfigF8En),
       RVA: bit'(CVA6ConfigAExtEn),
+      RVB: bit'(CVA6ConfigBExtEn),
       RVV: bit'(CVA6ConfigVExtEn),
       RVC: bit'(CVA6ConfigCExtEn),
       RVZCB: bit'(CVA6ConfigZcbExtEn),
       XFVec: bit'(CVA6ConfigFVecEn),
       CvxifEn: bit'(CVA6ConfigCvxifEn),
-      ZiCondExtEn: bit'(0),
-      // Extended
-      RVF:
-      bit'(
-      0
-      ),
-      RVD: bit'(0),
-      FpPresent: bit'(0),
-      NSX: bit'(0),
-      FLen: unsigned'(0),
-      RVFVec: bit'(0),
-      XF16Vec: bit'(0),
-      XF16ALTVec: bit'(0),
-      XF8Vec: bit'(0),
-      NrRgprPorts: unsigned'(0),
-      NrWbPorts: unsigned'(0),
-      EnableAccelerator: bit'(0),
+      ZiCondExtEn: bit'(CVA6ConfigZiCondExtEn),
       RVS: bit'(1),
+      RVU: bit'(1),
       HaltAddress: 64'h800,
       ExceptionAddress: 64'h808,
       RASDepth: unsigned'(CVA6ConfigRASDepth),
       BTBEntries: unsigned'(CVA6ConfigBTBEntries),
       BHTEntries: unsigned'(CVA6ConfigBHTEntries),
       DmBaseAddress: 64'h0,
+      TvalEn: bit'(CVA6ConfigTvalEn),
       NrPMPEntries: unsigned'(CVA6ConfigNrPMPEntries),
+      PMPCfgRstVal: {16{64'h0}},
+      PMPAddrRstVal: {16{64'h0}},
+      PMPEntryReadOnly: 16'd0,
       NOCType: config_pkg::NOC_TYPE_AXI4_ATOP,
       // idempotent region
       NrNonIdempotentRules:
@@ -135,6 +128,8 @@ package cva6_config_pkg;
       ),
       CachedRegionAddrBase: 1024'({64'h8000_0000}),
       CachedRegionLength: 1024'({64'h40000000}),
-      MaxOutstandingStores: unsigned'(7)
+      MaxOutstandingStores: unsigned'(7),
+      DebugEn: bit'(1),
+      AxiBurstWriteEn: bit'(0)
   };
 endpackage

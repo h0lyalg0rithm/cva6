@@ -25,11 +25,19 @@ package hpdcache_params_pkg;
   import cva6_config_pkg::CVA6ConfigNrLoadBufEntries;
   //  }}}
 
-  //  Definition of constants used only in this file
+  //  Definition of constants and functions used only in this file
   //  {{{
   localparam int unsigned __BYTES_PER_WAY = CVA6ConfigDcacheByteSize / CVA6ConfigDcacheSetAssoc;
-
   localparam int unsigned __BYTES_PER_CACHELINE = CVA6ConfigDcacheLineWidth / 8;
+  localparam int unsigned __MAX_RAM_WORD_BITS = 128;
+
+  function int unsigned __minu(int unsigned x, int unsigned y);
+    return x < y ? x : y;
+  endfunction
+
+  function int unsigned __maxu(int unsigned x, int unsigned y);
+    return y < x ? x : y;
+  endfunction
   //  }}}
 
   //  Definition of global constants for the HPDcache data and directory
@@ -57,11 +65,19 @@ package hpdcache_params_pkg;
 
   //  HPDcache request source ID width (bits)
   localparam int unsigned PARAM_REQ_SRC_ID_WIDTH = 3;
+
+  //  HPDcache victim selection policy
+  //  0: (Pseudo) RANDOM
+  //  1: (Pseudo) LRU
+  localparam int unsigned PARAM_VICTIM_SEL = 0;
   //  }}}
 
   //  Definition of constants and types for HPDcache data memory
   //  {{{
-  localparam int unsigned PARAM_DATA_WAYS_PER_RAM_WORD = 128 / PARAM_WORD_WIDTH;
+  localparam int unsigned PARAM_DATA_WAYS_PER_RAM_WORD = __minu(
+      __MAX_RAM_WORD_BITS / PARAM_WORD_WIDTH, PARAM_WAYS
+  );
+
   localparam int unsigned PARAM_DATA_SETS_PER_RAM = PARAM_SETS;
 
   //  HPDcache DATA RAM macros whether implements:
@@ -79,13 +95,13 @@ package hpdcache_params_pkg;
   //  Definition of constants and types for the Miss Status Holding Register (MSHR)
   //  {{{
   //  HPDcache MSHR number of sets
-  localparam int unsigned PARAM_MSHR_SETS = 2;
+  localparam int unsigned PARAM_MSHR_SETS = 1;
 
   //  HPDcache MSHR number of ways
-  localparam int unsigned PARAM_MSHR_WAYS = (CVA6ConfigNrLoadBufEntries > 4) ? 4 : 2;
+  localparam int unsigned PARAM_MSHR_WAYS = CVA6ConfigNrLoadBufEntries;
 
   //  HPDcache MSHR number of ways in the same SRAM word
-  localparam int unsigned PARAM_MSHR_WAYS_PER_RAM_WORD = PARAM_MSHR_WAYS > 1 ? 2 : 1;
+  localparam int unsigned PARAM_MSHR_WAYS_PER_RAM_WORD = (PARAM_MSHR_WAYS > 1) ? 2 : 1;
 
   //  HPDcache MSHR number of sets in the same SRAM
   localparam int unsigned PARAM_MSHR_SETS_PER_RAM = PARAM_MSHR_SETS;
@@ -97,6 +113,12 @@ package hpdcache_params_pkg;
 
   //  HPDcache MSHR whether uses FFs or SRAM
   localparam bit PARAM_MSHR_USE_REGBANK = (PARAM_MSHR_SETS * PARAM_MSHR_WAYS) <= 16;
+
+  //  HPDcache feedthrough FIFOs from the refill handler to the core
+  localparam bit PARAM_REFILL_CORE_RSP_FEEDTHROUGH = 1'b1;
+
+  //  HPDcache depth of the refill FIFO
+  localparam int PARAM_REFILL_FIFO_DEPTH = 32'd2;
   //  }}}
 
   //  Definition of constants and types for the Write Buffer (WBUF)
@@ -112,6 +134,7 @@ package hpdcache_params_pkg;
 
   //  HPDcache Write-Buffer threshold counter width (in bits)
   localparam int unsigned PARAM_WBUF_TIMECNT_WIDTH = 3;
+  localparam bit PARAM_WBUF_SEND_FEEDTHROUGH = 1'b0;
   //  }}}
 
   //  Definition of constants and types for the Replay Table (RTAB)

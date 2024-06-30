@@ -179,7 +179,7 @@ module miss_handler
     amo_bypass_req.wdata        = '0;
     amo_bypass_req.be           = '0;
     amo_bypass_req.size         = 2'b11;
-    amo_bypass_req.id           = 4'b1011;
+    amo_bypass_req.id           = 4'b1000 | 4'(NR_PORTS);  // map AMO id to the first non-MSHR id
     // core
     flush_ack_o                 = 1'b0;
     miss_o                      = 1'b0;  // to performance counter
@@ -205,15 +205,9 @@ module miss_handler
         // lowest priority are AMOs, wait until everything else is served before going for the AMOs
         if (amo_req_i.req && !busy_i) begin
           // 1. Flush the cache
-          if (!serve_amo_q) begin
-            state_d = FLUSH_REQ_STATUS;
-            serve_amo_d = 1'b1;
-            cnt_d = '0;
-            // 2. Do the AMO
-          end else begin
-            state_d = AMO_REQ;
-            serve_amo_d = 1'b0;
-          end
+          state_d = FLUSH_REQ_STATUS;
+          serve_amo_d = 1'b1;
+          cnt_d = '0;
         end
         // check if we want to flush and can flush e.g.: we are not busy anymore
         // TODO: Check that the busy flag is indeed needed
@@ -380,7 +374,13 @@ module miss_handler
           if (cnt_q[DCACHE_INDEX_WIDTH-1:DCACHE_BYTE_OFFSET] == DCACHE_NUM_WORDS - 1) begin
             // only acknowledge if the flush wasn't triggered by an atomic
             flush_ack_o = ~serve_amo_q;
-            state_d     = IDLE;
+            // if we are flushing because of an AMO go to serve it
+            if (serve_amo_q) begin
+              state_d = AMO_REQ;
+              serve_amo_d = 1'b0;
+            end else begin
+              state_d = IDLE;
+            end
           end
         end
       end
@@ -689,7 +689,11 @@ module axi_adapter_arbiter #(
     input  rsp_t                rsp_i
 );
 
-  localparam MAX_OUTSTANDING_CNT_WIDTH = $clog2(MAX_OUTSTANDING_REQ + 1) > 0 ? $clog2(MAX_OUTSTANDING_REQ + 1) : 1;
+  localparam MAX_OUTSTANDING_CNT_WIDTH = $clog2(
+      MAX_OUTSTANDING_REQ + 1
+  ) > 0 ? $clog2(
+      MAX_OUTSTANDING_REQ + 1
+  ) : 1;
 
   typedef logic [MAX_OUTSTANDING_CNT_WIDTH-1:0] outstanding_cnt_t;
 
@@ -723,7 +727,6 @@ module axi_adapter_arbiter #(
 
     rsp_o = '0;
     rsp_o[sel_q].rdata = rsp_i.rdata;
-    rsp_o[sel_q].valid = rsp_i.valid;
 
     case (state_q)
 
@@ -750,6 +753,18 @@ module axi_adapter_arbiter #(
       end
 
       SERVING: begin
+        // We can accept multiple outstanding transactions from same port.
+        // To ensure fairness, we allow this only if all other ports are idle
+        if ((!req_o.req) && !any_unselected_port_valid &&
+          (outstanding_cnt_q != (MAX_OUTSTANDING_REQ - 1))) begin
+          if (req_i[sel_q].req) begin
+            req_d = req_i[sel_q];
+            req_o = req_i[sel_q];
+            rsp_o[sel_q].gnt = 1'b1;
+            state_d = SERVING;
+          end
+        end
+
         // Count outstanding transactions, i.e. requests which have been
         // granted but response hasn't arrived yet
         if (req_o.req && rsp_i.gnt) begin
@@ -761,17 +776,6 @@ module axi_adapter_arbiter #(
           rsp_o[sel_q].valid = 1'b1;
 
           if ((outstanding_cnt_d == 0) && (!req_o.req || rsp_i.gnt)) state_d = IDLE;
-        end
-
-        // We can accept multiple outstanding transactions from same port.
-        // To ensure fairness, we allow this only if all other ports are idle
-        if ((!req_o.req || rsp_i.gnt) && !any_unselected_port_valid &&
-          (outstanding_cnt_d != MAX_OUTSTANDING_REQ)) begin
-          if (req_i[sel_q].req) begin
-            req_d = req_i[sel_q];
-            rsp_o[sel_q].gnt = 1'b1;
-            state_d = SERVING;
-          end
         end
       end
 

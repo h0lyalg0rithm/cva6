@@ -22,13 +22,19 @@ module bht #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
     parameter int unsigned NR_ENTRIES = 1024
 ) (
-    input  logic                                                          clk_i,
-    input  logic                                                          rst_ni,
-    input  logic                                                          flush_i,
-    input  logic                                                          debug_mode_i,
-    input  logic                        [                riscv::VLEN-1:0] vpc_i,
-    input  ariane_pkg::bht_update_t                                       bht_update_i,
-    // we potentially need INSTR_PER_FETCH predictions/cycle
+    // Subsystem Clock - SUBSYSTEM
+    input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
+    input logic rst_ni,
+    // Branch prediction flush request - zero
+    input logic flush_bp_i,
+    // Debug mode state - CSR
+    input logic debug_mode_i,
+    // Virtual PC - CACHE
+    input logic [riscv::VLEN-1:0] vpc_i,
+    // Update bht with resolved address - EXECUTE
+    input ariane_pkg::bht_update_t bht_update_i,
+    // Prediction from bht - FRONTEND
     output ariane_pkg::bht_prediction_t [ariane_pkg::INSTR_PER_FETCH-1:0] bht_prediction_o
 );
   // the last bit is always zero, we don't need it for indexing
@@ -74,7 +80,7 @@ module bht #(
       bht_d = bht_q;
       saturation_counter = bht_q[update_pc][update_row_index].saturation_counter;
 
-      if (bht_update_i.valid && !debug_mode_i) begin
+      if ((bht_update_i.valid && CVA6Cfg.DebugEn && !debug_mode_i) || (bht_update_i.valid && !CVA6Cfg.DebugEn)) begin
         bht_d[update_pc][update_row_index].valid = 1'b1;
 
         if (saturation_counter == 2'b11) begin
@@ -103,7 +109,7 @@ module bht #(
         end
       end else begin
         // evict all entries
-        if (flush_i) begin
+        if (flush_bp_i) begin
           for (int i = 0; i < NR_ROWS; i++) begin
             for (int j = 0; j < ariane_pkg::INSTR_PER_FETCH; j++) begin
               bht_q[i][j].valid <= 1'b0;

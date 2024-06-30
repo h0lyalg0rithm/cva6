@@ -25,15 +25,25 @@ module instr_realign
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
+    // Subsystem Clock - SUBSYSTEM
     input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
     input logic rst_ni,
+    // Fetch flush request - CONTROLLER
     input logic flush_i,
+    // 32-bit block is valid - CACHE
     input logic valid_i,
-    output logic serving_unaligned_o,  // we have an unaligned instruction in [0]
+    // Instruction is unaligned - FRONTEND
+    output logic serving_unaligned_o,
+    // 32-bit block address - CACHE
     input logic [riscv::VLEN-1:0] address_i,
+    // 32-bit block - CACHE
     input logic [FETCH_WIDTH-1:0] data_i,
+    // instruction is valid - FRONTEND
     output logic [INSTR_PER_FETCH-1:0] valid_o,
+    // Instruction address - FRONTEND
     output logic [INSTR_PER_FETCH-1:0][riscv::VLEN-1:0] addr_o,
+    // Instruction - instr_scan&instr_queue
     output logic [INSTR_PER_FETCH-1:0][31:0] instr_o
 );
   // as a maximum we support a fetch width of 64-bit, hence there can be 4 compressed instructions
@@ -99,7 +109,7 @@ module instr_realign
           unaligned_instr_d = data_i[15:0];
           // the instruction isn't compressed but only the lower is ready
         end else begin
-          valid_o = 1'b1;
+          valid_o = {{INSTR_PER_FETCH - 1{1'b0}}, 1'b1};
         end
       end
     end

@@ -40,6 +40,12 @@ class uvmt_cva6_base_test_c extends uvm_test;
    uvme_cva6_env_c   env       ;
    uvme_cva6_vsqr_c  vsequencer;
 
+   typedef enum {
+      UVMA_AXI_VERSION_1P1,
+      UVMA_AXI_VERSION_1P2,
+      UVMA_AXI_VERSION_1P3
+   } uvma_axi_version_enum;
+
    // Handles testbench interfaces
    virtual uvmt_rvfi_if                  rvfi_vif;  // virtual peripheral status
 //   virtual uvmt_cva6_core_cntrl_if   core_cntrl_vif; // control inputs to the core
@@ -49,6 +55,8 @@ class uvmt_cva6_base_test_c extends uvm_test;
 
    // Variable can be modified from command line, to change the AXI agent mode
    int force_axi_mode = -1;
+
+   uvm_factory             factory;
 
 
    `uvm_component_utils_begin(uvmt_cva6_base_test_c)
@@ -72,6 +80,16 @@ class uvmt_cva6_base_test_c extends uvm_test;
 
    constraint test_type_default_cons {
      soft test_cfg.tpt == NO_TEST_PROGRAM;
+   }
+
+   constraint memory_region_cfg {
+      env_cfg.axi_cfg.axi_region_enabled == 0;
+      env_cfg.axi_cfg.axi_prot_enabled == 0;
+      env_cfg.axi_cfg.m_addr_start == 64'h0;
+      env_cfg.axi_cfg.m_addr_end == 64'h7fffffffffffffff;
+      env_cfg.axi_cfg.m_num_part == 1;
+      env_cfg.axi_cfg.m_part_st[0].axi_prot_type_access == 0;
+      env_cfg.axi_cfg.m_part_st[0].m_type_access == 3;
    }
 
 
@@ -136,6 +154,8 @@ class uvmt_cva6_base_test_c extends uvm_test;
     * Creates test_cfg and env_cfg. Assigns ral handle to env_cfg's.
     */
    extern virtual function void create_cfg();
+
+   extern virtual function void pkg_to_cfg();
 
    /**
     * 1. Calls test_cfg's process_cli_args()
@@ -213,12 +233,33 @@ function void uvmt_cva6_base_test_c::build_phase(uvm_phase phase);
    retrieve_vifs    ();
    create_cfg       ();
    randomize_test   ();
+   pkg_to_cfg       ();
    cfg_hrtbt_monitor();
    assign_cfg       ();
    create_cntxt     ();
    assign_cntxt     ();
    create_env       ();
    create_components();
+
+   `uvm_info("BASE TEST", $sformatf("AXI config version = %s", env_cfg.axi_cfg.version), UVM_LOW)
+
+   factory = uvm_factory::get();
+
+   case (env_cfg.axi_cfg.version)
+      UVMA_AXI_VERSION_1P2 : begin
+         factory.set_type_override_by_name("uvma_axi_synchronizer_c", "uvma_axi_ext_synchronizer_c");
+         `uvm_info("BASE TEST", $sformatf("AXI EXT SYNCHRONIZER"), UVM_LOW)
+      end
+      UVMA_AXI_VERSION_1P3 : begin
+         factory.set_type_override_by_name("uvma_axi_synchronizer_c", "uvma_axi_amo_synchronizer_c");
+         `uvm_info("BASE TEST", $sformatf("AXI AMO SYNCHRONIZER"), UVM_LOW)
+      end
+   endcase
+
+   if(!env_cfg.axi_cfg.preload_mem) begin
+      factory.set_type_override_by_name("uvma_axi_fw_preload_seq_c", "uvme_axi_fw_preload_seq_c");
+   end
+
 
 endfunction : build_phase
 
@@ -319,6 +360,16 @@ function void uvmt_cva6_base_test_c::create_cfg();
 
 endfunction : create_cfg
 
+function void uvmt_cva6_base_test_c::pkg_to_cfg();
+
+    st_core_cntrl_cfg st = env_cfg.to_struct();
+    st = cva6pkg_to_core_cntrl_cfg(st);
+
+    env_cfg.from_struct(st);
+
+    env_cfg.post_randomize();
+
+endfunction : pkg_to_cfg
 
 function void uvmt_cva6_base_test_c::randomize_test();
 
@@ -326,8 +377,8 @@ function void uvmt_cva6_base_test_c::randomize_test();
    if (!this.randomize()) begin
       `uvm_fatal("BASE TEST", "Failed to randomize test");
    end
-   `uvm_info("BASE TEST", $sformatf("Top-level environment configuration:\n%s", env_cfg.sprint()), UVM_NONE)
-   `uvm_info("BASE TEST", $sformatf("Testcase configuration:\n%s", test_cfg.sprint()), UVM_NONE)
+   `uvm_info("BASE TEST", $sformatf("Top-level environment configuration:\n%s", env_cfg.sprint()), UVM_HIGH)
+   `uvm_info("BASE TEST", $sformatf("Testcase configuration:\n%s", test_cfg.sprint()), UVM_HIGH)
 
 endfunction : randomize_test
 

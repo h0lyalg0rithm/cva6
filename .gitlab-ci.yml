@@ -129,6 +129,7 @@ smoke:
     DASHBOARD_JOB_DESCRIPTION: "Short tests to challenge most architectures with most testbenchs configurations"
     DASHBOARD_SORT_INDEX: 0
     DASHBOARD_JOB_CATEGORY: "Basic"
+    SPIKE_TANDEM: 1
   parallel:
     matrix:
       - DV_SIMULATORS:
@@ -136,7 +137,7 @@ smoke:
         - "vcs-testharness,spike"
         - "vcs-uvm,spike"
   script:
-    - source verif/regress/smoke-tests.sh
+    - bash verif/regress/smoke-tests.sh
     - !reference [.simu_after_script]
 
 gen_smoke:
@@ -149,7 +150,7 @@ gen_smoke:
     DASHBOARD_JOB_CATEGORY: "Basic"
     DV_SIMULATORS: "vcs-uvm,spike"
   script:
-    - source verif/regress/smoke-gen_tests.sh
+    - bash verif/regress/smoke-gen_tests.sh
     - !reference [.simu_after_script]
 
 coremark:
@@ -162,7 +163,7 @@ coremark:
     DASHBOARD_JOB_CATEGORY: "Performance"
   script:
     - bash verif/regress/coremark.sh --no-print
-    - python3 .gitlab-ci/scripts/report_benchmark.py --coremark verif/sim/out_*/veri-testharness_sim/core_main.log
+    - python3 .gitlab-ci/scripts/report_benchmark.py --coremark verif/sim/out_*/veri-testharness_sim/core_main.*.log
 
 hwconfig:
   extends:
@@ -206,6 +207,11 @@ asic-synthesis:
     INPUT_DELAY: "0.46"
     OUTPUT_DELAY: "0.11"
     PERIOD: "0.85"
+  parallel:
+    matrix:
+      - DV_TARGET:
+        - "cv32a6_embedded"
+        - "cv32a65x"
   script:
     - echo $SYNTH_PERIOD
     - echo $INPUT_DELAY
@@ -215,7 +221,7 @@ asic-synthesis:
     - echo $PERIOD
     - echo $TECH_NAME
     - echo $DV_TARGET
-    - source verif/regress/install-cva6.sh
+    - source ./verif/sim/setup-env.sh
     - echo $SYN_DCSHELL_BASHRC; source $SYN_DCSHELL_BASHRC
     - make -C pd/synth cva6_synth TARGET="$DV_TARGET"
     - mv pd/synth/cva6_${DV_TARGET}_synth_modified.v artifacts/cva6_${DV_TARGET}_synth_modified.v
@@ -232,7 +238,7 @@ fpga-build:
     TARGET: cv32a60x
   script:
     - source $VIVADO_SETUP
-    - source verif/regress/install-cva6.sh
+    - source ./verif/sim/setup-env.sh
     - make fpga target=$TARGET
     - mkdir -p artifacts/reports
     - mv corev_apu/fpga/work-fpga/ariane_xilinx.bit artifacts/ariane_xilinx_$TARGET.bit
@@ -258,7 +264,7 @@ dhrystone:
     DASHBOARD_JOB_CATEGORY: "Performance"
   script:
     - bash verif/regress/dhrystone.sh
-    - python3 .gitlab-ci/scripts/report_benchmark.py --dhrystone verif/sim/out_*/veri-testharness_sim/dhrystone_main.log
+    - python3 .gitlab-ci/scripts/report_benchmark.py --dhrystone verif/sim/out_*/veri-testharness_sim/dhrystone_main.*.log
 
 riscv_arch_test:
   extends:
@@ -316,21 +322,10 @@ riscv-tests-p:
     - .regress_test
   rules: &on_verif
     - if: $CI_KIND == "verif"
+      allow_failure: true
     - when: manual
       allow_failure: true
   timeout: 4h
-
-csr_test:
-  extends:
-    - .verif_test
-  variables:
-    DASHBOARD_JOB_TITLE: "csr_test $DV_TARGET"
-    DASHBOARD_JOB_DESCRIPTION: "CSR regression suite"
-    DASHBOARD_SORT_INDEX: 0
-    DASHBOARD_JOB_CATEGORY: "Test suites"
-    DV_SIMULATORS: "veri-testharness,spike"
-  script: source verif/regress/dv-riscv-csr-access-test.sh
-  after_script: *simu_after_script
 
 mmu_sv32_tests:
   extends:
@@ -360,8 +355,8 @@ generated_tests:
         DASHBOARD_JOB_TITLE: "Generated Hazard Arithmetic tests"
         DASHBOARD_JOB_DESCRIPTION: "Generate Hazard register (RAW) Arithmetic tests using CVA6-DV"
       - list_num: 3
-        DASHBOARD_JOB_TITLE: "Generated CSR tests"
-        DASHBOARD_JOB_DESCRIPTION: "Generate Random CSR tests using CVA6-DV"
+        DASHBOARD_JOB_TITLE: "Generated Illegal instruction tests"
+        DASHBOARD_JOB_DESCRIPTION: "Generate Random Illegal instruction tests using CVA6-DV"
       - list_num: 4
         DASHBOARD_JOB_TITLE: "Generated MMU tests"
         DASHBOARD_JOB_DESCRIPTION: "Generate Random MMU tests using CVA6-DV"
@@ -413,11 +408,26 @@ directed_isacov-tests:
     - mv verif/sim/vcs_results/default/vcs.d/simv.vdb artifacts/coverage
     - python3 .gitlab-ci/scripts/report_pass.py
 
+csr_embedded_tests:
+  extends:
+    - .verif_test
+  variables:
+    DASHBOARD_JOB_TITLE: "csr_embedded test $DV_TARGET"
+    DASHBOARD_JOB_DESCRIPTION: "CSR Test generated using UVM-REG"
+    DASHBOARD_SORT_INDEX: 15
+    DASHBOARD_JOB_CATEGORY: "CSR tests"
+    DV_SIMULATORS: "vcs-uvm"
+  script:
+    - mkdir -p artifacts/coverage
+    - source verif/regress/dv-csr-embedded-tests.sh
+    - mv verif/sim/vcs_results/default/vcs.d/simv.vdb artifacts/coverage
+    - python3 .gitlab-ci/scripts/report_pass.py
+
 directed_xif-tests:
   extends:
     - .verif_test
   variables:
-    DASHBOARD_SORT_INDEX: 15
+    DASHBOARD_SORT_INDEX: 16
     DASHBOARD_JOB_CATEGORY: "Functional Coverage"
   parallel:
     matrix:
@@ -455,8 +465,7 @@ smoke-gate:
     - echo $FOUNDRY_PATH
     - echo $PERIOD
     - echo $TECH_NAME
-    - source verif/regress/install-cva6.sh
-    - source verif/regress/install-riscv-dv.sh
+    - source ./verif/sim/setup-env.sh
     - source verif/regress/install-riscv-tests.sh
     - mv artifacts/cva6_${DV_TARGET}_synth_modified.v pd/synth/cva6_${DV_TARGET}_synth_modified.v
     - cd verif/sim
@@ -476,10 +485,8 @@ fpga-boot:
     DASHBOARD_JOB_DESCRIPTION: "Test of Linux 32 bits boot on FPGA Genesys2"
     DASHBOARD_SORT_INDEX: 10
     DASHBOARD_JOB_CATEGORY: "Synthesis"
-    VERILATOR_INSTALL_DIR: "NO" # Skip install and checks of verilator
-    SPIKE_INSTALL_DIR: "NO"  # Skip install and checks of spike
   script:
-    - source verif/regress/install-cva6.sh
+    - source ./verif/sim/setup-env.sh
     - source $VIVADO2022_SETUP
     - mkdir -p corev_apu/fpga/work-fpga
     - mv artifacts/ariane_xilinx_cv32a60x.bit corev_apu/fpga/work-fpga/ariane_xilinx.bit
@@ -496,6 +503,7 @@ code_coverage-report:
     - directed_isacov-tests
     - generated_xif_tests
     - directed_xif-tests
+    - csr_embedded_tests
   variables:
     DASHBOARD_JOB_TITLE: "Report merge coverage"
     DASHBOARD_JOB_DESCRIPTION: "Report merge coverage of generated tests"

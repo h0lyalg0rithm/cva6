@@ -23,11 +23,16 @@ module alu
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
-    input  logic         clk_i,            // Clock
-    input  logic         rst_ni,           // Asynchronous reset active low
-    input  fu_data_t     fu_data_i,
+    // Subsystem Clock - SUBSYSTEM
+    input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
+    input logic rst_ni,
+    // FU data needed to execute instruction - ISSUE_STAGE
+    input fu_data_t fu_data_i,
+    // ALU result - ISSUE_STAGE
     output riscv::xlen_t result_o,
-    output logic         alu_branch_res_o
+    // ALU branch compare result - branch_unit
+    output logic alu_branch_res_o
 );
 
   riscv::xlen_t                   operand_a_rev;
@@ -75,18 +80,23 @@ module alu
   always_comb begin
     operand_a_bitmanip = fu_data_i.operand_a;
 
-    if (ariane_pkg::BITMANIP) begin
+    if (CVA6Cfg.RVB) begin
+      if (riscv::IS_XLEN64) begin
+        unique case (fu_data_i.operation)
+          SH1ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 1;
+          SH2ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 2;
+          SH3ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 3;
+          CTZW:               operand_a_bitmanip = operand_a_rev32;
+          ADDUW, CPOPW, CLZW: operand_a_bitmanip = fu_data_i.operand_a[31:0];
+          default:            ;
+        endcase
+      end
       unique case (fu_data_i.operation)
-        SH1ADD:             operand_a_bitmanip = fu_data_i.operand_a << 1;
-        SH2ADD:             operand_a_bitmanip = fu_data_i.operand_a << 2;
-        SH3ADD:             operand_a_bitmanip = fu_data_i.operand_a << 3;
-        SH1ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 1;
-        SH2ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 2;
-        SH3ADDUW:           operand_a_bitmanip = fu_data_i.operand_a[31:0] << 3;
-        CTZ:                operand_a_bitmanip = operand_a_rev;
-        CTZW:               operand_a_bitmanip = operand_a_rev32;
-        ADDUW, CPOPW, CLZW: operand_a_bitmanip = fu_data_i.operand_a[31:0];
-        default:            ;
+        SH1ADD:  operand_a_bitmanip = fu_data_i.operand_a << 1;
+        SH2ADD:  operand_a_bitmanip = fu_data_i.operand_a << 2;
+        SH3ADD:  operand_a_bitmanip = fu_data_i.operand_a << 3;
+        CTZ:     operand_a_bitmanip = operand_a_rev;
+        default: ;
       endcase
     end
   end
@@ -189,7 +199,7 @@ module alu
             $signed({sgn & fu_data_i.operand_b[riscv::XLEN-1], fu_data_i.operand_b}));
   end
 
-  if (ariane_pkg::BITMANIP) begin : gen_bitmanip
+  if (CVA6Cfg.RVB) begin : gen_bitmanip
     // Count Population + Count population Word
 
     popcount #(
@@ -209,23 +219,47 @@ module alu
         .cnt_o(lz_tz_count),
         .empty_o(lz_tz_empty)
     );
-    //32b
-    lzc #(
-        .WIDTH(32),
-        .MODE (1)
-    ) i_clz_32b (
-        .in_i(operand_a_bitmanip[31:0]),
-        .cnt_o(lz_tz_wcount),
-        .empty_o(lz_tz_wempty)
-    );
+    if (riscv::IS_XLEN64) begin
+      //32b
+      lzc #(
+          .WIDTH(32),
+          .MODE (1)
+      ) i_clz_32b (
+          .in_i(operand_a_bitmanip[31:0]),
+          .cnt_o(lz_tz_wcount),
+          .empty_o(lz_tz_wempty)
+      );
+    end
   end
 
-  if (ariane_pkg::BITMANIP) begin : gen_orcbw_rev8w_results
-    assign orcbw = {{8{|fu_data_i.operand_a[31:24]}}, {8{|fu_data_i.operand_a[23:16]}}, {8{|fu_data_i.operand_a[15:8]}}, {8{|fu_data_i.operand_a[7:0]}}};
-    assign rev8w = {{fu_data_i.operand_a[7:0]}, {fu_data_i.operand_a[15:8]}, {fu_data_i.operand_a[23:16]}, {fu_data_i.operand_a[31:24]}};
-    if (riscv::XLEN == 64) begin : gen_64b
-      assign orcbw_result = {{8{|fu_data_i.operand_a[63:56]}}, {8{|fu_data_i.operand_a[55:48]}}, {8{|fu_data_i.operand_a[47:40]}}, {8{|fu_data_i.operand_a[39:32]}}, orcbw};
-      assign rev8w_result = {rev8w , {fu_data_i.operand_a[39:32]}, {fu_data_i.operand_a[47:40]}, {fu_data_i.operand_a[55:48]}, {fu_data_i.operand_a[63:56]}};
+  if (CVA6Cfg.RVB) begin : gen_orcbw_rev8w_results
+    assign orcbw = {
+      {8{|fu_data_i.operand_a[31:24]}},
+      {8{|fu_data_i.operand_a[23:16]}},
+      {8{|fu_data_i.operand_a[15:8]}},
+      {8{|fu_data_i.operand_a[7:0]}}
+    };
+    assign rev8w = {
+      {fu_data_i.operand_a[7:0]},
+      {fu_data_i.operand_a[15:8]},
+      {fu_data_i.operand_a[23:16]},
+      {fu_data_i.operand_a[31:24]}
+    };
+    if (riscv::IS_XLEN64) begin : gen_64b
+      assign orcbw_result = {
+        {8{|fu_data_i.operand_a[63:56]}},
+        {8{|fu_data_i.operand_a[55:48]}},
+        {8{|fu_data_i.operand_a[47:40]}},
+        {8{|fu_data_i.operand_a[39:32]}},
+        orcbw
+      };
+      assign rev8w_result = {
+        rev8w,
+        {fu_data_i.operand_a[39:32]},
+        {fu_data_i.operand_a[47:40]},
+        {fu_data_i.operand_a[55:48]},
+        {fu_data_i.operand_a[63:56]}
+      };
     end else begin : gen_32b
       assign orcbw_result = orcbw;
       assign rev8w_result = rev8w;
@@ -237,42 +271,50 @@ module alu
   // -----------
   always_comb begin
     result_o = '0;
+    if (riscv::IS_XLEN64) begin
+      unique case (fu_data_i.operation)
+        // Add word: Ignore the upper bits and sign extend to 64 bit
+        ADDW, SUBW: result_o = {{riscv::XLEN - 32{adder_result[31]}}, adder_result[31:0]};
+        SH1ADDUW, SH2ADDUW, SH3ADDUW: result_o = adder_result;
+        // Shifts 32 bit
+        SLLW, SRLW, SRAW: result_o = {{riscv::XLEN - 32{shift_result32[31]}}, shift_result32[31:0]};
+        default: ;
+      endcase
+    end
     unique case (fu_data_i.operation)
       // Standard Operations
       ANDL, ANDN: result_o = fu_data_i.operand_a & operand_b_neg[riscv::XLEN:1];
-      ORL, ORN:   result_o = fu_data_i.operand_a | operand_b_neg[riscv::XLEN:1];
+      ORL, ORN: result_o = fu_data_i.operand_a | operand_b_neg[riscv::XLEN:1];
       XORL, XNOR: result_o = fu_data_i.operand_a ^ operand_b_neg[riscv::XLEN:1];
-
       // Adder Operations
-      ADD, SUB, ADDUW, SH1ADD, SH2ADD, SH3ADD, SH1ADDUW, SH2ADDUW, SH3ADDUW:
-      result_o = adder_result;
-      // Add word: Ignore the upper bits and sign extend to 64 bit
-      ADDW, SUBW: result_o = {{riscv::XLEN - 32{adder_result[31]}}, adder_result[31:0]};
+      ADD, SUB, ADDUW, SH1ADD, SH2ADD, SH3ADD: result_o = adder_result;
       // Shift Operations
-      SLL, SRL, SRA: result_o = (riscv::XLEN == 64) ? shift_result : shift_result32;
-      // Shifts 32 bit
-      SLLW, SRLW, SRAW: result_o = {{riscv::XLEN - 32{shift_result32[31]}}, shift_result32[31:0]};
-
+      SLL, SRL, SRA: result_o = (riscv::IS_XLEN64) ? shift_result : shift_result32;
       // Comparison Operations
       SLTS, SLTU: result_o = {{riscv::XLEN - 1{1'b0}}, less};
-
       default: ;  // default case to suppress unique warning
     endcase
 
-    if (ariane_pkg::BITMANIP) begin
+    if (CVA6Cfg.RVB) begin
       // Index for Bitwise Rotation
       bit_indx = 1 << (fu_data_i.operand_b & (riscv::XLEN - 1));
       // rolw, roriw, rorw
       rolw = ({{riscv::XLEN-32{1'b0}},fu_data_i.operand_a[31:0]} << fu_data_i.operand_b[4:0]) | ({{riscv::XLEN-32{1'b0}},fu_data_i.operand_a[31:0]} >> (riscv::XLEN-32-fu_data_i.operand_b[4:0]));
       rorw = ({{riscv::XLEN-32{1'b0}},fu_data_i.operand_a[31:0]} >> fu_data_i.operand_b[4:0]) | ({{riscv::XLEN-32{1'b0}},fu_data_i.operand_a[31:0]} << (riscv::XLEN-32-fu_data_i.operand_b[4:0]));
+      if (riscv::IS_XLEN64) begin
+        unique case (fu_data_i.operation)
+          CLZW, CTZW:
+          result_o = (lz_tz_wempty) ? 32 : {{riscv::XLEN - 5{1'b0}}, lz_tz_wcount};  // change
+          ROLW: result_o = {{riscv::XLEN - 32{rolw[31]}}, rolw};
+          RORW, RORIW: result_o = {{riscv::XLEN - 32{rorw[31]}}, rorw};
+          default: ;
+        endcase
+      end
       unique case (fu_data_i.operation)
-        // Left Shift 32 bit unsigned
-        SLLIUW:
-        result_o = {{riscv::XLEN-32{1'b0}}, fu_data_i.operand_a[31:0]} << fu_data_i.operand_b[5:0];
         // Integer minimum/maximum
-        MAX: result_o = less ? fu_data_i.operand_b : fu_data_i.operand_a;
+        MAX:  result_o = less ? fu_data_i.operand_b : fu_data_i.operand_a;
         MAXU: result_o = less ? fu_data_i.operand_b : fu_data_i.operand_a;
-        MIN: result_o = ~less ? fu_data_i.operand_b : fu_data_i.operand_a;
+        MIN:  result_o = ~less ? fu_data_i.operand_b : fu_data_i.operand_a;
         MINU: result_o = ~less ? fu_data_i.operand_b : fu_data_i.operand_a;
 
         // Single bit instructions operations
@@ -285,7 +327,6 @@ module alu
         CLZ, CTZ:
         result_o = (lz_tz_empty) ? ({{riscv::XLEN - $clog2(riscv::XLEN) {1'b0}}, lz_tz_count} + 1) :
             {{riscv::XLEN - $clog2(riscv::XLEN) {1'b0}}, lz_tz_count};
-        CLZW, CTZW: result_o = (lz_tz_wempty) ? 32 : {{riscv::XLEN - 5{1'b0}}, lz_tz_wcount};
 
         // Count population
         CPOP, CPOPW: result_o = {{(riscv::XLEN - ($clog2(riscv::XLEN) + 1)) {1'b0}}, cpop};
@@ -297,17 +338,17 @@ module alu
 
         // Bitwise Rotation
         ROL:
-        result_o = (riscv::XLEN == 64) ? ((fu_data_i.operand_a << fu_data_i.operand_b[5:0]) | (fu_data_i.operand_a >> (riscv::XLEN-fu_data_i.operand_b[5:0]))) : ((fu_data_i.operand_a << fu_data_i.operand_b[4:0]) | (fu_data_i.operand_a >> (riscv::XLEN-fu_data_i.operand_b[4:0])));
-        ROLW: result_o = {{riscv::XLEN - 32{rolw[31]}}, rolw};
-        ROR, RORI:
-        result_o = (riscv::XLEN == 64) ? ((fu_data_i.operand_a >> fu_data_i.operand_b[5:0]) | (fu_data_i.operand_a << (riscv::XLEN-fu_data_i.operand_b[5:0]))) : ((fu_data_i.operand_a >> fu_data_i.operand_b[4:0]) | (fu_data_i.operand_a << (riscv::XLEN-fu_data_i.operand_b[4:0])));
-        RORW, RORIW: result_o = {{riscv::XLEN - 32{rorw[31]}}, rorw};
-        ORCB:
-        result_o = orcbw_result;
-        REV8:
-        result_o = rev8w_result;
+        result_o = (riscv::IS_XLEN64) ? ((fu_data_i.operand_a << fu_data_i.operand_b[5:0]) | (fu_data_i.operand_a >> (riscv::XLEN-fu_data_i.operand_b[5:0]))) : ((fu_data_i.operand_a << fu_data_i.operand_b[4:0]) | (fu_data_i.operand_a >> (riscv::XLEN-fu_data_i.operand_b[4:0])));
 
-        default: ;  // default case to suppress unique warning
+        ROR, RORI:
+        result_o = (riscv::IS_XLEN64) ? ((fu_data_i.operand_a >> fu_data_i.operand_b[5:0]) | (fu_data_i.operand_a << (riscv::XLEN-fu_data_i.operand_b[5:0]))) : ((fu_data_i.operand_a >> fu_data_i.operand_b[4:0]) | (fu_data_i.operand_a << (riscv::XLEN-fu_data_i.operand_b[4:0])));
+
+        ORCB: result_o = orcbw_result;
+        REV8: result_o = rev8w_result;
+
+        default:
+        if (fu_data_i.operation == SLLIUW && riscv::IS_XLEN64)
+          result_o = {{riscv::XLEN-32{1'b0}}, fu_data_i.operand_a[31:0]} << fu_data_i.operand_b[5:0];  // Left Shift 32 bit unsigned
       endcase
     end
     if (CVA6Cfg.ZiCondExtEn) begin

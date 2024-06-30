@@ -18,38 +18,61 @@ module store_unit
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
-    input logic clk_i,  // Clock
-    input logic rst_ni,  // Asynchronous reset active low
+    // Subsystem Clock - SUBSYSTEM
+    input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
+    input logic rst_ni,
+    // Flush - CONTROLLER
     input logic flush_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic stall_st_pending_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     output logic no_st_pending_o,
+    // Store buffer is empty - TO_BE_COMPLETED
     output logic store_buffer_empty_o,
-    // store unit input port
+    // Store instruction is valid - ISSUE_STAGE
     input logic valid_i,
+    // Data input - ISSUE_STAGE
     input lsu_ctrl_t lsu_ctrl_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     output logic pop_st_o,
+    // Instruction commit - TO_BE_COMPLETED
     input logic commit_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     output logic commit_ready_o,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic amo_valid_commit_i,
-    // store unit output port
+    // Store result is valid - ISSUE_STAGE
     output logic valid_o,
+    // Transaction ID - ISSUE_STAGE
     output logic [TRANS_ID_BITS-1:0] trans_id_o,
+    // Store result - ISSUE_STAGE
     output riscv::xlen_t result_o,
+    // Store exception output - TO_BE_COMPLETED
     output exception_t ex_o,
-    // MMU -> Address Translation
-    output logic translation_req_o,  // request address translation
-    output logic [riscv::VLEN-1:0] vaddr_o,  // virtual address out
-    output [riscv::PLEN-1:0] mem_paddr_o,
-    input logic [riscv::PLEN-1:0] paddr_i,  // physical address in
+    // Address translation request - TO_BE_COMPLETED
+    output logic translation_req_o,
+    // Virtual address - TO_BE_COMPLETED
+    output logic [riscv::VLEN-1:0] vaddr_o,
+    // RVFI information - RVFI
+    output [riscv::PLEN-1:0] rvfi_mem_paddr_o,
+    // Physical address - TO_BE_COMPLETED
+    input logic [riscv::PLEN-1:0] paddr_i,
+    // Exception raised before store - TO_BE_COMPLETED
     input exception_t ex_i,
-    input  logic                     dtlb_hit_i,       // will be one in the same cycle translation_req was asserted if it hits
-    // address checker
+    // Data TLB hit - lsu
+    input logic dtlb_hit_i,
+    // Address to be checked - load_unit
     input logic [11:0] page_offset_i,
+    // Address check result - load_unit
     output logic page_offset_matches_o,
-    // D$ interface
+    // AMO request - CACHES
     output amo_req_t amo_req_o,
+    // AMO response - CACHES
     input amo_resp_t amo_resp_i,
+    // Data cache request - CACHES
     input dcache_req_o_t req_port_i,
+    // Data cache response - CACHES
     output dcache_req_i_t req_port_o
 );
   // it doesn't matter what we are writing back as stores don't return anything
@@ -120,7 +143,7 @@ module store_unit
         st_valid_without_flush = 1'b1;
 
         // we have another request and its not an AMO (the AMO buffer only has depth 1)
-        if (valid_i && !instr_is_amo) begin
+        if ((valid_i && CVA6Cfg.RVA && !instr_is_amo) || (valid_i && !CVA6Cfg.RVA)) begin
 
           translation_req_o = 1'b1;
           state_d = VALID_STORE;
@@ -151,11 +174,11 @@ module store_unit
         end
       end
 
-      // we didn't receive a valid translation, wait for one
-      // but we know that the store queue is not full as we could only have landed here if
-      // it wasn't full
-      WAIT_TRANSLATION: begin
-        if (ariane_pkg::MMU_PRESENT) begin
+      default: begin
+        // we didn't receive a valid translation, wait for one
+        // but we know that the store queue is not full as we could only have landed here if
+        // it wasn't full
+        if (state_q == WAIT_TRANSLATION && ariane_pkg::MMU_PRESENT) begin
           translation_req_o = 1'b1;
 
           if (dtlb_hit_i) begin
@@ -188,26 +211,26 @@ module store_unit
     st_be_n = lsu_ctrl_i.be;
     // don't shift the data if we are going to perform an AMO as we still need to operate on this data
     st_data_n = (CVA6Cfg.RVA && instr_is_amo) ? lsu_ctrl_i.data[riscv::XLEN-1:0] :
-        data_align(lsu_ctrl_i.vaddr[2:0], lsu_ctrl_i.data);
+        data_align(lsu_ctrl_i.vaddr[2:0], {{64 - riscv::XLEN{1'b0}}, lsu_ctrl_i.data});
     st_data_size_n = extract_transfer_size(lsu_ctrl_i.operation);
     // save AMO op for next cycle
-    if(CVA6Cfg.RVA) begin
-        case (lsu_ctrl_i.operation)
-            AMO_LRW, AMO_LRD:     amo_op_d = AMO_LR;
-            AMO_SCW, AMO_SCD:     amo_op_d = AMO_SC;
-            AMO_SWAPW, AMO_SWAPD: amo_op_d = AMO_SWAP;
-            AMO_ADDW, AMO_ADDD:   amo_op_d = AMO_ADD;
-            AMO_ANDW, AMO_ANDD:   amo_op_d = AMO_AND;
-            AMO_ORW, AMO_ORD:     amo_op_d = AMO_OR;
-            AMO_XORW, AMO_XORD:   amo_op_d = AMO_XOR;
-            AMO_MAXW, AMO_MAXD:   amo_op_d = AMO_MAX;
-            AMO_MAXWU, AMO_MAXDU: amo_op_d = AMO_MAXU;
-            AMO_MINW, AMO_MIND:   amo_op_d = AMO_MIN;
-            AMO_MINWU, AMO_MINDU: amo_op_d = AMO_MINU;
-            default: amo_op_d = AMO_NONE;
-        endcase
+    if (CVA6Cfg.RVA) begin
+      case (lsu_ctrl_i.operation)
+        AMO_LRW, AMO_LRD:     amo_op_d = AMO_LR;
+        AMO_SCW, AMO_SCD:     amo_op_d = AMO_SC;
+        AMO_SWAPW, AMO_SWAPD: amo_op_d = AMO_SWAP;
+        AMO_ADDW, AMO_ADDD:   amo_op_d = AMO_ADD;
+        AMO_ANDW, AMO_ANDD:   amo_op_d = AMO_AND;
+        AMO_ORW, AMO_ORD:     amo_op_d = AMO_OR;
+        AMO_XORW, AMO_XORD:   amo_op_d = AMO_XOR;
+        AMO_MAXW, AMO_MAXD:   amo_op_d = AMO_MAX;
+        AMO_MAXWU, AMO_MAXDU: amo_op_d = AMO_MAXU;
+        AMO_MINW, AMO_MIND:   amo_op_d = AMO_MIN;
+        AMO_MINWU, AMO_MINDU: amo_op_d = AMO_MINU;
+        default:              amo_op_d = AMO_NONE;
+      endcase
     end else begin
-        amo_op_d = AMO_NONE;
+      amo_op_d = AMO_NONE;
     end
   end
 
@@ -245,7 +268,7 @@ module store_unit
       // the whole pipeline anyway
       .valid_without_flush_i(st_valid_without_flush),
       .paddr_i,
-      .mem_paddr_o          (mem_paddr_o),
+      .rvfi_mem_paddr_o     (rvfi_mem_paddr_o),
       .data_i               (st_data_q),
       .be_i                 (st_be_q),
       .data_size_i          (st_data_size_q),
@@ -253,28 +276,28 @@ module store_unit
       .req_port_o           (req_port_o)
   );
 
-  if(CVA6Cfg.RVA) begin
-        amo_buffer #(
-            .CVA6Cfg   ( CVA6Cfg   )
-        ) i_amo_buffer (
-            .clk_i,
-            .rst_ni,
-            .flush_i,
-            .valid_i            ( amo_buffer_valid   ),
-            .ready_o            ( amo_buffer_ready   ),
-            .paddr_i            ( paddr_i            ),
-            .amo_op_i           ( amo_op_q           ),
-            .data_i             ( st_data_q          ),
-            .data_size_i        ( st_data_size_q     ),
-            .amo_req_o          ( amo_req_o          ),
-            .amo_resp_i         ( amo_resp_i         ),
-            .amo_valid_commit_i ( amo_valid_commit_i ),
-            .no_st_pending_i    ( no_st_pending_o    )
-        );
-    end else begin
-        assign amo_buffer_ready = '1;
-        assign amo_req_o        = '0;
-    end
+  if (CVA6Cfg.RVA) begin
+    amo_buffer #(
+        .CVA6Cfg(CVA6Cfg)
+    ) i_amo_buffer (
+        .clk_i,
+        .rst_ni,
+        .flush_i,
+        .valid_i           (amo_buffer_valid),
+        .ready_o           (amo_buffer_ready),
+        .paddr_i           (paddr_i),
+        .amo_op_i          (amo_op_q),
+        .data_i            (st_data_q),
+        .data_size_i       (st_data_size_q),
+        .amo_req_o         (amo_req_o),
+        .amo_resp_i        (amo_resp_i),
+        .amo_valid_commit_i(amo_valid_commit_i),
+        .no_st_pending_i   (no_st_pending_o)
+    );
+  end else begin
+    assign amo_buffer_ready = '1;
+    assign amo_req_o        = '0;
+  end
 
   // ---------------
   // Registers

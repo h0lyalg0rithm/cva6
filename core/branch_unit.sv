@@ -15,22 +15,34 @@
 module branch_unit #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
 ) (
+    // Subsystem Clock - SUBSYSTEM
     input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
     input logic rst_ni,
+    // Debug mode state - CSR_REGFILE
     input logic debug_mode_i,
+    // FU data needed to execute instruction - ISSUE_STAGE
     input ariane_pkg::fu_data_t fu_data_i,
-    input logic [riscv::VLEN-1:0] pc_i,  // PC of instruction
+    // Instruction PC - ISSUE_STAGE
+    input logic [riscv::VLEN-1:0] pc_i,
+    // Instruction is compressed - ISSUE_STAGE
     input logic is_compressed_instr_i,
-    input  logic                      fu_valid_i,             // any functional unit is valid, check that there is no accidental mis-predict
+    // any functional unit is valid, check that there is no accidental mis-predict - TO_BE_COMPLETED
+    input logic fu_valid_i,
+    // Branch unit instruction is valid - ISSUE_STAGE
     input logic branch_valid_i,
-    input logic branch_comp_res_i,  // branch comparison result from ALU
+    // ALU branch compare result - ALU
+    input logic branch_comp_res_i,
+    // Brach unit result - ISSUE_STAGE
     output logic [riscv::VLEN-1:0] branch_result_o,
-
-    input ariane_pkg::branchpredict_sbe_t branch_predict_i,  // this is the address we predicted
-    output ariane_pkg::bp_resolve_t               resolved_branch_o,      // this is the actual address we are targeting
-    output logic resolve_branch_o,  // to ID to clear that we resolved the branch and we can
-                                    // accept new entries to the scoreboard
-    output ariane_pkg::exception_t branch_exception_o  // branch exception out
+    // Information of branch prediction - ISSUE_STAGE
+    input ariane_pkg::branchpredict_sbe_t branch_predict_i,
+    // Signaling that we resolved the branch - ISSUE_STAGE
+    output ariane_pkg::bp_resolve_t resolved_branch_o,
+    // Branch is resolved, new entries can be accepted by scoreboard - ID_STAGE
+    output logic resolve_branch_o,
+    // Branch exception out - TO_BE_COMPLETED
+    output ariane_pkg::exception_t branch_exception_o
 );
   logic [riscv::VLEN-1:0] target_address;
   logic [riscv::VLEN-1:0] next_pc;
@@ -96,9 +108,13 @@ module branch_unit #(
         ((ariane_pkg::op_is_branch(fu_data_i.operation)) && branch_comp_res_i);
     branch_exception_o.cause = riscv::INSTR_ADDR_MISALIGNED;
     branch_exception_o.valid = 1'b0;
-    branch_exception_o.tval = {{riscv::XLEN - riscv::VLEN{pc_i[riscv::VLEN-1]}}, pc_i};
+    if (CVA6Cfg.TvalEn)
+      branch_exception_o.tval = {{riscv::XLEN - riscv::VLEN{pc_i[riscv::VLEN-1]}}, pc_i};
+    else branch_exception_o.tval = '0;
     // Only throw instruction address misaligned exception if this is indeed a `taken` conditional branch or
     // an unconditional jump
-    if (branch_valid_i && target_address[0] != 1'b0 && jump_taken) branch_exception_o.valid = 1'b1;
+    if (branch_valid_i && (target_address[0] || (!CVA6Cfg.RVC && target_address[1])) && jump_taken) begin
+      branch_exception_o.valid = 1'b1;
+    end
   end
 endmodule

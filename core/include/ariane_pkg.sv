@@ -107,22 +107,17 @@ package ariane_pkg;
   // enables a commit log which matches spikes commit log format for easier trace comparison
   localparam bit ENABLE_SPIKE_COMMIT_LOG = 1'b1;
 
-  // ------------- Dangerouse -------------
+  // ------------- Dangerous -------------
   // if set to zero a flush will not invalidate the cache-lines, in a single core environment
   // where coherence is not necessary this can improve performance. This needs to be switched on
   // when more than one core is in a system
   localparam logic INVALIDATE_ON_FLUSH = 1'b1;
+
 `ifdef SPIKE_TANDEM
-  // enable performance cycle counter, if set to zero mcycle will be incremented
-  // with instret (non RISC-V conformal)
-  localparam bit ENABLE_CYCLE_COUNT = 1'b0;
-  // mark WIF as nop
-  localparam bit ENABLE_WFI = 1'b0;
-  // Spike zeros tval on all exception except memory faults
+  // Spike still places 0 in TVAL for ENV_CALL_* exceptions.
+  // This may eventually go away when Spike starts to handle TVAL for *all* exceptions.
   localparam bit ZERO_TVAL = 1'b1;
 `else
-  localparam bit ENABLE_CYCLE_COUNT = 1'b1;
-  localparam bit ENABLE_WFI = 1'b1;
   localparam bit ZERO_TVAL = 1'b0;
 `endif
   // read mask for SSTATUS over MMSTATUS
@@ -170,14 +165,7 @@ package ariane_pkg;
   localparam int unsigned FETCH_WIDTH = 32;
   // maximum instructions we can fetch on one request (we support compressed instructions)
   localparam int unsigned INSTR_PER_FETCH = RVC == 1'b1 ? (FETCH_WIDTH / 16) : 1;
-  localparam int unsigned LOG2_INSTR_PER_FETCH = RVC == 1'b1 ? $clog2(
-      ariane_pkg::INSTR_PER_FETCH
-  ) : 1;
-
-  // ---------------
-  // Enable BITMANIP
-  // ---------------
-  localparam bit BITMANIP = cva6_config_pkg::CVA6ConfigBExtEn;
+  localparam int unsigned LOG2_INSTR_PER_FETCH = RVC == 1'b1 ? $clog2(INSTR_PER_FETCH) : 1;
 
   // Only use struct when signals have same direction
   // exception
@@ -685,8 +673,6 @@ package ariane_pkg;
   // ID/EX/WB Stage
   // ---------------
 
-  localparam RVFI = cva6_config_pkg::CVA6ConfigRvfiTrace;
-
   typedef struct packed {
     logic [riscv::VLEN-1:0] pc;  // PC of instruction
     logic [TRANS_ID_BITS-1:0] trans_id;      // this can potentially be simplified, we could index the scoreboard entry
@@ -708,12 +694,6 @@ package ariane_pkg;
     branchpredict_sbe_t bp;  // branch predict scoreboard data structure
     logic                     is_compressed; // signals a compressed instructions, we need this information at the commit stage if
                                              // we want jump accordingly e.g.: +4, +2
-    riscv::xlen_t rs1_rdata;  // information needed by RVFI
-    riscv::xlen_t rs2_rdata;  // information needed by RVFI
-    logic [riscv::VLEN-1:0] lsu_addr;  // information needed by RVFI
-    logic [(riscv::XLEN/8)-1:0] lsu_rmask;  // information needed by RVFI
-    logic [(riscv::XLEN/8)-1:0] lsu_wmask;  // information needed by RVFI
-    riscv::xlen_t lsu_wdata;  // information needed by RVFI
     logic vfp;  // is this a vector floating-point instruction?
   } scoreboard_entry_t;
 
@@ -851,6 +831,138 @@ package ariane_pkg;
     riscv::xlen_t                 data_rdata;
     logic [DCACHE_USER_WIDTH-1:0] data_ruser;
   } dcache_req_o_t;
+
+  // RVFI instr 
+  typedef struct packed {
+    logic [TRANS_ID_BITS-1:0] issue_pointer;
+    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][TRANS_ID_BITS-1:0] commit_pointer;
+    logic flush_unissued_instr;
+    logic decoded_instr_valid;
+    logic decoded_instr_ack;
+    logic flush;
+    logic issue_instr_ack;
+    logic fetch_entry_valid;
+    logic [31:0] instruction;
+    logic is_compressed;
+    riscv::xlen_t rs1_forwarding;
+    riscv::xlen_t rs2_forwarding;
+    scoreboard_entry_t [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0] commit_instr;
+    exception_t ex_commit;
+    riscv::priv_lvl_t priv_lvl;
+    lsu_ctrl_t lsu_ctrl;
+    logic [((cva6_config_pkg::CVA6ConfigCvxifEn || cva6_config_pkg::CVA6ConfigVExtEn) ? 5 : 4)-1:0][riscv::XLEN-1:0] wbdata;
+    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0] commit_ack;
+    logic [riscv::PLEN-1:0] mem_paddr;
+    logic debug_mode;
+    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][riscv::XLEN-1:0] wdata;
+  } rvfi_probes_instr_t;
+
+  // RVFI CSR element
+  typedef struct packed {
+    riscv::xlen_t rdata;
+    riscv::xlen_t rmask;
+    riscv::xlen_t wdata;
+    riscv::xlen_t wmask;
+  } rvfi_csr_elmt_t;
+
+  // RVFI CSR structure
+  typedef struct packed {
+    riscv::fcsr_t fcsr_q;
+    riscv::dcsr_t dcsr_q;
+    riscv::xlen_t dpc_q;
+    riscv::xlen_t dscratch0_q;
+    riscv::xlen_t dscratch1_q;
+    riscv::xlen_t mie_q;
+    riscv::xlen_t mip_q;
+    riscv::xlen_t stvec_q;
+    riscv::xlen_t scounteren_q;
+    riscv::xlen_t sscratch_q;
+    riscv::xlen_t sepc_q;
+    riscv::xlen_t scause_q;
+    riscv::xlen_t stval_q;
+    riscv::satp_t satp_q;
+    riscv::xlen_t mstatus_extended;
+    riscv::xlen_t medeleg_q;
+    riscv::xlen_t mideleg_q;
+    riscv::xlen_t mtvec_q;
+    riscv::xlen_t mcounteren_q;
+    riscv::xlen_t mscratch_q;
+    riscv::xlen_t mepc_q;
+    riscv::xlen_t mcause_q;
+    riscv::xlen_t mtval_q;
+    logic fiom_q;
+    logic [MHPMCounterNum+3-1:0] mcountinhibit_q;
+    logic [63:0] cycle_q;
+    logic [63:0] instret_q;
+    riscv::xlen_t dcache_q;
+    riscv::xlen_t icache_q;
+    riscv::xlen_t acc_cons_q;
+    riscv::pmpcfg_t [15:0] pmpcfg_q;
+    logic [15:0][riscv::PLEN-3:0] pmpaddr_q;
+  } rvfi_probes_csr_t;
+
+  // RVFI CSR structure
+  typedef struct packed {
+    rvfi_csr_elmt_t fflags;
+    rvfi_csr_elmt_t frm;
+    rvfi_csr_elmt_t fcsr;
+    rvfi_csr_elmt_t ftran;
+    rvfi_csr_elmt_t dcsr;
+    rvfi_csr_elmt_t dpc;
+    rvfi_csr_elmt_t dscratch0;
+    rvfi_csr_elmt_t dscratch1;
+    rvfi_csr_elmt_t sstatus;
+    rvfi_csr_elmt_t sie;
+    rvfi_csr_elmt_t sip;
+    rvfi_csr_elmt_t stvec;
+    rvfi_csr_elmt_t scounteren;
+    rvfi_csr_elmt_t sscratch;
+    rvfi_csr_elmt_t sepc;
+    rvfi_csr_elmt_t scause;
+    rvfi_csr_elmt_t stval;
+    rvfi_csr_elmt_t satp;
+    rvfi_csr_elmt_t mstatus;
+    rvfi_csr_elmt_t mstatush;
+    rvfi_csr_elmt_t misa;
+    rvfi_csr_elmt_t medeleg;
+    rvfi_csr_elmt_t mideleg;
+    rvfi_csr_elmt_t mie;
+    rvfi_csr_elmt_t mtvec;
+    rvfi_csr_elmt_t mcounteren;
+    rvfi_csr_elmt_t mscratch;
+    rvfi_csr_elmt_t mepc;
+    rvfi_csr_elmt_t mcause;
+    rvfi_csr_elmt_t mtval;
+    rvfi_csr_elmt_t mip;
+    rvfi_csr_elmt_t menvcfg;
+    rvfi_csr_elmt_t menvcfgh;
+    rvfi_csr_elmt_t mvendorid;
+    rvfi_csr_elmt_t marchid;
+    rvfi_csr_elmt_t mhartid;
+    rvfi_csr_elmt_t mcountinhibit;
+    rvfi_csr_elmt_t mcycle;
+    rvfi_csr_elmt_t mcycleh;
+    rvfi_csr_elmt_t minstret;
+    rvfi_csr_elmt_t minstreth;
+    rvfi_csr_elmt_t cycle;
+    rvfi_csr_elmt_t cycleh;
+    rvfi_csr_elmt_t instret;
+    rvfi_csr_elmt_t instreth;
+    rvfi_csr_elmt_t dcache;
+    rvfi_csr_elmt_t icache;
+    rvfi_csr_elmt_t acc_cons;
+    rvfi_csr_elmt_t pmpcfg0;
+    rvfi_csr_elmt_t pmpcfg1;
+    rvfi_csr_elmt_t pmpcfg2;
+    rvfi_csr_elmt_t pmpcfg3;
+    rvfi_csr_elmt_t [15:0] pmpaddr;
+
+  } rvfi_csr_t;
+
+
+  localparam RVFI = cva6_config_pkg::CVA6ConfigRvfiTrace;
+
+
 
   // ----------------------
   // Arithmetic Functions

@@ -18,16 +18,18 @@ iterations = None
 # Will fail if the number of cycles is different from this one
 valid_cycles = {
     'dhrystone': 217900,
-    'coremark': 670777,
+    'coremark': 665193,
 }
 
 for arg in sys.argv[1:]:
     if arg == '--dhrystone':
         mode = 'dhrystone'
+        # Standard value for Dhrystone
         iterations = 500
     elif arg == '--coremark':
         mode = 'coremark'
-        # Too few iterations to consider a score
+        # Defined in verif/regress/coremark.sh
+        iterations = 2
     else:
         path = arg
 
@@ -39,7 +41,7 @@ with open(path, 'r') as f:
 
 stopwatch = []
 for index, line in enumerate(log):
-    if line.split()[-1] == 'mcycle':
+    if line.split()[-1] == 'mcycle' or line.split()[-2] == 'mcycle,':
         stopwatch.append(int(log[index + 1].split()[-1], 16))
 # There might be > 2 matches, we use the two at the center
 N = len(stopwatch)
@@ -54,6 +56,8 @@ if iterations is not None:
     if mode == 'dhrystone':
         score_metric.add_value('Dhrystone/MHz', ipmhz)
         score_metric.add_value('DMIPS/MHz', ipmhz / 1757)
+    if mode == 'coremark':
+        score_metric.add_value('CoreMark/MHz', ipmhz)
 
 diff = cycles - valid_cycles[mode]
 if diff != 0:

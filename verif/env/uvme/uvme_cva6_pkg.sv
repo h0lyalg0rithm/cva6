@@ -37,6 +37,7 @@
  */
 package uvme_cva6_pkg;
 
+   import cva6_config_pkg ::*;
    import uvm_pkg         ::*;
    import uvml_hrtbt_pkg  ::*;
    import uvml_sb_pkg     ::*;
@@ -47,7 +48,28 @@ package uvme_cva6_pkg;
    import uvml_mem_pkg  ::*;
    import uvma_core_cntrl_pkg::*;
    import uvma_rvfi_pkg::*;
+   import uvmc_rvfi_scoreboard_pkg::*;
+   import uvmc_rvfi_reference_model_pkg::*;
    import uvma_isacov_pkg::*;
+   import "DPI-C" function read_elf(input string filename);
+   import "DPI-C" function byte get_section(output longint address, output longint len);
+   import "DPI-C" context function void read_section_sv(input longint address, inout byte buffer[]);
+
+  // Default legal opcode and funct7 for RV32I instructions
+  bit [6:0]  legal_i_opcode[$] = '{7'b0000011,
+                                   7'b0001111,
+                                   7'b0010011,
+                                   7'b0010111,
+                                   7'b0100011,
+                                   7'b0110111,
+                                   7'b1100011,
+                                   7'b0110011,
+                                   7'b1100111,
+                                   7'b1110011,
+                                   7'b1101111};
+
+  bit [6:0]  legal_i_funct7[$] = '{7'b0000000,
+                                   7'b0100000};
 
    // Constants / Structs / Enums
    `include "uvme_cva6_constants.sv"
@@ -74,13 +96,18 @@ package uvme_cva6_pkg;
    `include "uvme_cva6_vsqr.sv"
    `include "uvme_cvxif_covg.sv"
    `include "uvme_isa_covg.sv"
+   `include "uvme_illegal_instr_covg.sv"
+   `include "uvme_exception_covg.sv"
    `include "uvme_cva6_config_covg.sv"
+   `include "uvme_axi_covg.sv"
+   `include "uvme_axi_ext_covg.sv"
    `include "uvme_cva6_cov_model.sv"
    `include "uvme_cva6_env.sv"
 
    // Virtual sequences
    `include "uvme_cva6_base_vseq.sv"
    `include "uvme_cva6_reset_vseq.sv"
+   `include "uvme_axi_fw_preload_seq.sv"
 //   `include "uvme_cva6_interrupt_noise_vseq.sv"
    `include "uvme_cva6_vseq_lib.sv"
 

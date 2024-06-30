@@ -16,33 +16,8 @@
 `include "axi/assign.svh"
 
 module ariane_testharness #(
-  parameter config_pkg::cva6_cfg_t CVA6Cfg = cva6_config_pkg::cva6_cfg,
+  parameter config_pkg::cva6_cfg_t CVA6Cfg = build_config_pkg::build_config(cva6_config_pkg::cva6_cfg),
   parameter bit IsRVFI = bit'(cva6_config_pkg::CVA6ConfigRvfiTrace),
-  parameter type rvfi_instr_t = struct packed {
-    logic [config_pkg::NRET-1:0]                  valid;
-    logic [config_pkg::NRET*64-1:0]               order;
-    logic [config_pkg::NRET*config_pkg::ILEN-1:0] insn;
-    logic [config_pkg::NRET-1:0]                  trap;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      cause;
-    logic [config_pkg::NRET-1:0]                  halt;
-    logic [config_pkg::NRET-1:0]                  intr;
-    logic [config_pkg::NRET*2-1:0]                mode;
-    logic [config_pkg::NRET*2-1:0]                ixl;
-    logic [config_pkg::NRET*5-1:0]                rs1_addr;
-    logic [config_pkg::NRET*5-1:0]                rs2_addr;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      rs1_rdata;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      rs2_rdata;
-    logic [config_pkg::NRET*5-1:0]                rd_addr;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      rd_wdata;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_rdata;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_wdata;
-    logic [config_pkg::NRET*riscv::VLEN-1:0]      mem_addr;
-    logic [config_pkg::NRET*riscv::PLEN-1:0]      mem_paddr;
-    logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_rmask;
-    logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_wmask;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_rdata;
-    logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_wdata;
-  },
   //
   parameter int unsigned AXI_USER_WIDTH    = ariane_pkg::AXI_USER_WIDTH,
   parameter int unsigned AXI_USER_EN       = ariane_pkg::AXI_USER_EN,
@@ -60,6 +35,40 @@ module ariane_testharness #(
 );
 
   localparam [7:0] hart_id = '0;
+  
+  
+    // RVFI
+  localparam type rvfi_instr_t = struct packed {
+      logic [config_pkg::NRET-1:0]                  valid;
+      logic [config_pkg::NRET*64-1:0]               order;
+      logic [config_pkg::NRET*config_pkg::ILEN-1:0] insn;
+      logic [config_pkg::NRET-1:0]                  trap;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      cause;
+      logic [config_pkg::NRET-1:0]                  halt;
+      logic [config_pkg::NRET-1:0]                  intr;
+      logic [config_pkg::NRET*2-1:0]                mode;
+      logic [config_pkg::NRET*2-1:0]                ixl;
+      logic [config_pkg::NRET*5-1:0]                rs1_addr;
+      logic [config_pkg::NRET*5-1:0]                rs2_addr;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      rs1_rdata;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      rs2_rdata;
+      logic [config_pkg::NRET*5-1:0]                rd_addr;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      rd_wdata;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_rdata;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      pc_wdata;
+      logic [config_pkg::NRET*riscv::VLEN-1:0]      mem_addr;
+      logic [config_pkg::NRET*riscv::PLEN-1:0]      mem_paddr;
+      logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_rmask;
+      logic [config_pkg::NRET*(riscv::XLEN/8)-1:0]  mem_wmask;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_rdata;
+      logic [config_pkg::NRET*riscv::XLEN-1:0]      mem_wdata;
+  };
+  
+  
+  localparam type rvfi_probes_t = struct packed { 
+      ariane_pkg::rvfi_probes_csr_t csr;
+      ariane_pkg::rvfi_probes_instr_t instr;
+  };
 
   // disable test-enable
   logic        test_en;
@@ -584,12 +593,7 @@ module ariane_testharness #(
     .AxiIdWidth   ( ariane_axi_soc::IdWidthSlave ),
     .AxiUserWidth ( AXI_USER_WIDTH               ),
 `ifndef VERILATOR
-  // disable UART when using Spike, as we need to rely on the mockuart
-  `ifdef SPIKE_TANDEM
-    .InclUART     ( 1'b0                     ),
-  `else
     .InclUART     ( 1'b1                     ),
-  `endif
 `else
     .InclUART     ( 1'b0                     ),
 `endif
@@ -630,12 +634,13 @@ module ariane_testharness #(
   // ---------------
   ariane_axi::req_t    axi_ariane_req;
   ariane_axi::resp_t   axi_ariane_resp;
-  rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0] rvfi;
-
+  rvfi_probes_t rvfi_probes;
+  ariane_pkg::rvfi_csr_t rvfi_csr;
+  rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0]  rvfi_instr;
+  
   ariane #(
     .CVA6Cfg              ( CVA6Cfg             ),
-    .IsRVFI               ( IsRVFI              ),
-    .rvfi_instr_t         ( rvfi_instr_t        ),
+    .rvfi_probes_t        ( rvfi_probes_t       ),
     .noc_req_t            ( ariane_axi::req_t   ),
     .noc_resp_t           ( ariane_axi::resp_t  )
   ) i_ariane (
@@ -646,7 +651,7 @@ module ariane_testharness #(
     .irq_i                ( irqs                ),
     .ipi_i                ( ipi                 ),
     .time_irq_i           ( timer_irq           ),
-    .rvfi_o               ( rvfi                ),
+    .rvfi_probes_o        ( rvfi_probes         ),
 // Disable Debug when simulating with Spike
 `ifdef SPIKE_TANDEM
     .debug_req_i          ( 1'b0                ),
@@ -677,19 +682,52 @@ module ariane_testharness #(
     end
   end
 
+  
+ 
+  cva6_rvfi #(
+      .CVA6Cfg   (CVA6Cfg),
+      .rvfi_instr_t(rvfi_instr_t),
+      .rvfi_csr_t(ariane_pkg::rvfi_csr_t),
+      .rvfi_probes_t(rvfi_probes_t)
+  ) i_cva6_rvfi (
+      .clk_i     (clk_i),
+      .rst_ni    (rst_ni),
+      .rvfi_probes_i(rvfi_probes),
+      .rvfi_instr_o(rvfi_instr),
+      .rvfi_csr_o(rvfi_csr)
+  );
+
   rvfi_tracer  #(
     .CVA6Cfg(CVA6Cfg),
     .rvfi_instr_t(rvfi_instr_t),
+    .rvfi_csr_t(ariane_pkg::rvfi_csr_t),
     //
     .HART_ID(hart_id),
     .DEBUG_START(0),
     .DEBUG_STOP(0)
-  ) rvfi_tracer_i (
+  ) i_rvfi_tracer (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
-    .rvfi_i(rvfi),
+    .rvfi_i(rvfi_instr),
+    .rvfi_csr_i(rvfi_csr),
     .end_of_test_o(rvfi_exit)
   );
+
+`ifdef SPIKE_TANDEM
+    spike #(
+        .CVA6Cfg ( CVA6Cfg ),
+        .rvfi_instr_t(rvfi_instr_t)
+    ) i_spike (
+        .clk_i,
+        .rst_ni,
+        .clint_tick_i   ( rtc_i    ),
+        .rvfi_i         ( rvfi_instr )
+    );
+    initial begin
+        $display("Running binary in tandem mode");
+    end
+`endif
+
 
 `ifdef AXI_SVA
   // AXI 4 Assertion IP integration - You will need to get your own copy of this IP if you want

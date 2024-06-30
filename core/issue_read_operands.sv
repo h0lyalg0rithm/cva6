@@ -20,73 +20,104 @@ module issue_read_operands
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
     parameter type rs3_len_t = logic
 ) (
-    input logic clk_i,  // Clock
-    input logic rst_ni,  // Asynchronous reset active low
-    // flush
+    // Subsystem Clock - SUBSYSTEM
+    input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
+    input logic rst_ni,
+    // Flush - CONTROLLER
     input logic flush_i,
-    // stall
+    // Stall inserted by Acc dispatcher - ACC_DISPATCHER
     input logic stall_i,
-    // coming from decoder
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input scoreboard_entry_t issue_instr_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
+    input logic [31:0] orig_instr_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic issue_instr_valid_i,
+    // Issue stage acknowledge - TO_BE_COMPLETED
     output logic issue_ack_o,
-    // lookup rd in scoreboard
+    // rs1 operand address - scoreboard
     output logic [REG_ADDR_SIZE-1:0] rs1_o,
+    // rs1 operand - scoreboard
     input riscv::xlen_t rs1_i,
+    // rs1 operand is valid - scoreboard
     input logic rs1_valid_i,
+    // rs2 operand address - scoreboard
     output logic [REG_ADDR_SIZE-1:0] rs2_o,
+    // rs2 operand - scoreboard
     input riscv::xlen_t rs2_i,
+    // rs2 operand is valid - scoreboard
     input logic rs2_valid_i,
+    // rs3 operand address - scoreboard
     output logic [REG_ADDR_SIZE-1:0] rs3_o,
+    // rs3 operand - scoreboard
     input rs3_len_t rs3_i,
+    // rs3 operand is valid - scoreboard
     input logic rs3_valid_i,
     // get clobber input
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input fu_t [2**REG_ADDR_SIZE-1:0] rd_clobber_gpr_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input fu_t [2**REG_ADDR_SIZE-1:0] rd_clobber_fpr_i,
-    // To FU, just single issue for now
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     output fu_data_t fu_data_o,
-    output riscv::xlen_t rs1_forwarding_o,  // unregistered version of fu_data_o.operanda
-    output riscv::xlen_t rs2_forwarding_o,  // unregistered version of fu_data_o.operandb
+    // Unregistered version of fu_data_o.operanda - TO_BE_COMPLETED
+    output riscv::xlen_t rs1_forwarding_o,
+    // Unregistered version of fu_data_o.operandb - TO_BE_COMPLETED
+    output riscv::xlen_t rs2_forwarding_o,
+    // Instruction pc - TO_BE_COMPLETED
     output logic [riscv::VLEN-1:0] pc_o,
+    // Is compressed instruction - TO_BE_COMPLETED
     output logic is_compressed_instr_o,
-    // ALU 1
-    input logic flu_ready_i,  // Fixed latency unit ready to accept a new request
-    output logic alu_valid_o,  // Output is valid
-    // Branches and Jumps
-    output logic branch_valid_o,  // this is a valid branch instruction
+    // Fixed Latency Unit ready to accept new request - TO_BE_COMPLETED
+    input logic flu_ready_i,
+    // ALU output is valid - TO_BE_COMPLETED
+    output logic alu_valid_o,
+    // Branch instruction is valid - TO_BE_COMPLETED
+    output logic branch_valid_o,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     output branchpredict_sbe_t branch_predict_o,
-    // LSU
-    input logic lsu_ready_i,  // FU is ready
-    output logic lsu_valid_o,  // Output is valid
-    // MULT
-    output logic mult_valid_o,  // Output is valid
-    // FPU
-    input logic fpu_ready_i,  // FU is ready
-    output logic fpu_valid_o,  // Output is valid
-    output logic [1:0] fpu_fmt_o,  // FP fmt field from instr.
-    output logic [2:0] fpu_rm_o,  // FP rm field from instr.
-    // CSR
-    output logic csr_valid_o,  // Output is valid
-    // CVXIF
+    // Load Store Unit is ready - TO_BE_COMPLETED
+    input logic lsu_ready_i,
+    // Load Store Unit result is valid - TO_BE_COMPLETED
+    output logic lsu_valid_o,
+    // Mult result is valid - TO_BE_COMPLETED
+    output logic mult_valid_o,
+    // FPU is ready - TO_BE_COMPLETED
+    input logic fpu_ready_i,
+    // FPU result is valid - TO_BE_COMPLETED
+    output logic fpu_valid_o,
+    // FPU fmt field from instruction - TO_BE_COMPLETED
+    output logic [1:0] fpu_fmt_o,
+    // FPU rm field from isntruction - TO_BE_COMPLETED
+    output logic [2:0] fpu_rm_o,
+    // CSR result is valid - TO_BE_COMPLETED
+    output logic csr_valid_o,
+    // CVXIF result is valid - TO_BE_COMPLETED
     output logic cvxif_valid_o,
+    // CVXIF is ready - TO_BE_COMPLETED
     input logic cvxif_ready_i,
+    // CVXIF offloaded instruction - TO_BE_COMPLETED
     output logic [31:0] cvxif_off_instr_o,
-    // commit port
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic [CVA6Cfg.NrCommitPorts-1:0][4:0] waddr_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic [CVA6Cfg.NrCommitPorts-1:0][riscv::XLEN-1:0] wdata_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic [CVA6Cfg.NrCommitPorts-1:0] we_gpr_i,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic [CVA6Cfg.NrCommitPorts-1:0] we_fpr_i,
 
-    output logic stall_issue_o  // stall signal, we do not want to fetch any more entries
-    // committing instruction instruction
-    // from scoreboard
-    // input  scoreboard_entry     commit_instr_i,
-    // output logic                commit_ack_o
+    // Stall signal, we do not want to fetch any more entries - TO_BE_COMPLETED
+    output logic stall_issue_o
 );
   logic stall;
   logic fu_busy;  // functional unit is busy
   riscv::xlen_t operand_a_regfile, operand_b_regfile;  // operands coming from regfile
-  rs3_len_t operand_c_regfile, operand_c_fpr, operand_c_gpr;  // third operand from fp regfile or gp regfile if NR_RGPR_PORTS == 3
+  rs3_len_t
+      operand_c_regfile,
+      operand_c_fpr,
+      operand_c_gpr;  // third operand from fp regfile or gp regfile if NR_RGPR_PORTS == 3
   // output flipflop (ID <-> EX)
   riscv::xlen_t operand_a_n, operand_a_q, operand_b_n, operand_b_q, imm_n, imm_q, imm_forward_rs3;
 
@@ -108,9 +139,9 @@ module issue_read_operands
   // forwarding signals
   logic forward_rs1, forward_rs2, forward_rs3;
 
-  // original instruction stored in tval
+  // original instruction
   riscv::instruction_t orig_instr;
-  assign orig_instr          = riscv::instruction_t'(issue_instr_i.ex.tval[31:0]);
+  assign orig_instr          = riscv::instruction_t'(orig_instr_i);
 
   // ID <-> EX registers
 
@@ -144,13 +175,15 @@ module issue_read_operands
     unique case (issue_instr_i.fu)
       NONE: fu_busy = 1'b0;
       ALU, CTRL_FLOW, CSR, MULT: fu_busy = ~flu_ready_i;
-      FPU, FPU_VEC:
-      if (CVA6Cfg.FpPresent) begin
-        fu_busy = ~fpu_ready_i;
-      end else fu_busy = 1'b0;
       LOAD, STORE: fu_busy = ~lsu_ready_i;
       CVXIF: fu_busy = ~cvxif_ready_i;
-      default: fu_busy = 1'b0;
+      default: begin
+        if (CVA6Cfg.FpPresent && (issue_instr_i.fu == FPU || issue_instr_i.fu == FPU_VEC)) begin
+          fu_busy = ~fpu_ready_i;
+        end else begin
+          fu_busy = 1'b0;
+        end
+      end
     endcase
   end
 
@@ -184,7 +217,7 @@ module issue_read_operands
       if (rs1_valid_i && (CVA6Cfg.FpPresent && is_rs1_fpr(
               issue_instr_i.op
           ) ? 1'b1 : ((rd_clobber_gpr_i[issue_instr_i.rs1] != CSR) ||
-                      (issue_instr_i.op == SFENCE_VMA)))) begin
+                      (CVA6Cfg.RVS && issue_instr_i.op == SFENCE_VMA)))) begin
         forward_rs1 = 1'b1;
       end else begin  // the operand is not available -> stall
         stall = 1'b1;
@@ -199,7 +232,7 @@ module issue_read_operands
       if (rs2_valid_i && (CVA6Cfg.FpPresent && is_rs2_fpr(
               issue_instr_i.op
           ) ? 1'b1 : ((rd_clobber_gpr_i[issue_instr_i.rs2] != CSR) ||
-                      (issue_instr_i.op == SFENCE_VMA)))) begin
+                      (CVA6Cfg.RVS && issue_instr_i.op == SFENCE_VMA)))) begin
         forward_rs2 = 1'b1;
       end else begin  // the operand is not available -> stall
         stall = 1'b1;
@@ -223,9 +256,9 @@ module issue_read_operands
 
   // third operand from fp regfile or gp regfile if NR_RGPR_PORTS == 3
   if (CVA6Cfg.NrRgprPorts == 3) begin : gen_gp_rs3
-      assign imm_forward_rs3 = rs3_i;
+    assign imm_forward_rs3 = rs3_i;
   end else begin : gen_fp_rs3
-      assign imm_forward_rs3 = {{riscv::XLEN-CVA6Cfg.FLen{1'b0}}, rs3_i};
+    assign imm_forward_rs3 = {{riscv::XLEN - CVA6Cfg.FLen{1'b0}}, rs3_i};
   end
 
   // Forwarding/Output MUX
@@ -255,7 +288,7 @@ module issue_read_operands
       operand_b_n = rs2_i;
     end
 
-    if (forward_rs3) begin
+    if (CVA6Cfg.FpPresent && forward_rs3) begin
       imm_n = imm_forward_rs3;
     end
 
@@ -315,27 +348,23 @@ module issue_read_operands
           MULT: begin
             mult_valid_q <= 1'b1;
           end
-          FPU: begin
-            if (CVA6Cfg.FpPresent) begin
-              fpu_valid_q <= 1'b1;
-              fpu_fmt_q   <= orig_instr.rftype.fmt;  // fmt bits from instruction
-              fpu_rm_q    <= orig_instr.rftype.rm;  // rm bits from instruction
-            end
-          end
-          FPU_VEC: begin
-            if (CVA6Cfg.FpPresent) begin
-              fpu_valid_q <= 1'b1;
-              fpu_fmt_q   <= orig_instr.rvftype.vfmt;  // vfmt bits from instruction
-              fpu_rm_q    <= {2'b0, orig_instr.rvftype.repl};  // repl bit from instruction
-            end
-          end
           LOAD, STORE: begin
             lsu_valid_q <= 1'b1;
           end
           CSR: begin
             csr_valid_q <= 1'b1;
           end
-          default: ;
+          default: begin
+            if (issue_instr_i.fu == FPU && CVA6Cfg.FpPresent) begin
+              fpu_valid_q <= 1'b1;
+              fpu_fmt_q   <= orig_instr.rftype.fmt;  // fmt bits from instruction
+              fpu_rm_q    <= orig_instr.rftype.rm;  // rm bits from instruction
+            end else if (issue_instr_i.fu == FPU_VEC && CVA6Cfg.FpPresent) begin
+              fpu_valid_q <= 1'b1;
+              fpu_fmt_q   <= orig_instr.rvftype.vfmt;  // vfmt bits from instruction
+              fpu_rm_q    <= {2'b0, orig_instr.rvftype.repl};  // repl bit from instruction
+            end
+          end
         endcase
       end
       // if we got a flush request, de-assert the valid flag, otherwise we will start this
@@ -536,7 +565,7 @@ module issue_read_operands
   endgenerate
 
   if (CVA6Cfg.NrRgprPorts == 3) begin : gen_operand_c
-    assign operand_c_fpr = {{riscv::XLEN-CVA6Cfg.FLen{1'b0}}, fprdata[2]};
+    assign operand_c_fpr = {{riscv::XLEN - CVA6Cfg.FLen{1'b0}}, fprdata[2]};
     assign operand_c_gpr = rdata[2];
   end else begin
     assign operand_c_fpr = fprdata[2];
@@ -548,7 +577,9 @@ module issue_read_operands
   assign operand_b_regfile = (CVA6Cfg.FpPresent && is_rs2_fpr(
       issue_instr_i.op
   )) ? {{riscv::XLEN - CVA6Cfg.FLen{1'b0}}, fprdata[1]} : rdata[1];
-  assign operand_c_regfile = (CVA6Cfg.NrRgprPorts == 3) ? ((CVA6Cfg.FpPresent && is_imm_fpr(issue_instr_i.op)) ? operand_c_fpr : operand_c_gpr) : operand_c_fpr;
+  assign operand_c_regfile = (CVA6Cfg.NrRgprPorts == 3) ? ((CVA6Cfg.FpPresent && is_imm_fpr(
+      issue_instr_i.op
+  )) ? operand_c_fpr : operand_c_gpr) : operand_c_fpr;
 
 
   // ----------------------

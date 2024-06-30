@@ -20,83 +20,126 @@ module csr_regfile
     parameter int                    AsidWidth      = 1,
     parameter int unsigned           MHPMCounterNum = 6
 ) (
-    input logic clk_i,  // Clock
-    input logic rst_ni,  // Asynchronous reset active low
-    input logic time_irq_i,  // Timer threw a interrupt
-    // send a flush request out if a CSR with a side effect has changed (e.g. written)
+    // Subsystem Clock - SUBSYSTEM
+    input logic clk_i,
+    // Asynchronous reset active low - SUBSYSTEM
+    input logic rst_ni,
+    // Timer threw a interrupt - SUBSYSTEM
+    input logic time_irq_i,
+    // send a flush request out when a CSR with a side effect changes - CONTROLLER
     output logic flush_o,
-    output logic halt_csr_o,  // halt requested
-    // commit acknowledge
-    input  scoreboard_entry_t [CVA6Cfg.NrCommitPorts-1:0] commit_instr_i, // the instruction we want to commit
-    input  logic [CVA6Cfg.NrCommitPorts-1:0]              commit_ack_i,   // Commit acknowledged a instruction -> increase instret CSR
-    // Core and Cluster ID
-    input  logic[riscv::VLEN-1:0] boot_addr_i,                // Address from which to start booting, mtvec is set to the same address
-    input  logic[riscv::XLEN-1:0] hart_id_i,                  // Hart id in a multicore environment (reflected in a CSR)
+    // halt requested - CONTROLLER
+    output logic halt_csr_o,
+    // Instruction to be committed - ID_STAGE
+    input scoreboard_entry_t [CVA6Cfg.NrCommitPorts-1:0] commit_instr_i,
+    // Commit acknowledged a instruction -> increase instret CSR - COMMIT_STAGE
+    input logic [CVA6Cfg.NrCommitPorts-1:0] commit_ack_i,
+    // Address from which to start booting, mtvec is set to the same address - SUBSYSTEM
+    input logic [riscv::VLEN-1:0] boot_addr_i,
+    // Hart id in a multicore environment (reflected in a CSR) - SUBSYSTEM
+    input logic [riscv::XLEN-1:0] hart_id_i,
     // we are taking an exception
-    input exception_t ex_i,  // We've got an exception from the commit stage, take it
-
-    input fu_op csr_op_i,  // Operation to perform on the CSR file
-    input logic [11:0] csr_addr_i,  // Address of the register to read/write
-    input logic [riscv::XLEN-1:0] csr_wdata_i,  // Write data in
-    output logic [riscv::XLEN-1:0] csr_rdata_o,  // Read data out
-    input logic dirty_fp_state_i,  // Mark the FP sate as dirty
-    input  logic                  csr_write_fflags_i,         // Write fflags register e.g.: we are retiring a floating point instruction
-    input logic dirty_v_state_i,  // Mark the V state as dirty
-    input logic [riscv::VLEN-1:0] pc_i,  // PC of instruction accessing the CSR
-    output exception_t csr_exception_o,  // attempts to access a CSR without appropriate privilege
-                                         // level or to write  a read-only register also
-                                         // raises illegal instruction exceptions.
-    // Interrupts/Exceptions
-    output logic  [riscv::VLEN-1:0] epc_o,                    // Output the exception PC to PC Gen, the correct CSR (mepc, sepc) is set accordingly
-    output logic eret_o,  // Return from exception, set the PC of epc_o
-    output logic  [riscv::VLEN-1:0] trap_vector_base_o,       // Output base of exception vector, correct CSR is output (mtvec, stvec)
-    output riscv::priv_lvl_t priv_lvl_o,  // Current privilege level the CPU is in
-    // FP Imprecise exceptions
-    input  logic            [4:0] acc_fflags_ex_i,            // Imprecise FP exception from the accelerator (fcsr.fflags format)
-    input logic acc_fflags_ex_valid_i,  // An FP exception from the accelerator occurred
-    // FPU
-    output riscv::xs_t fs_o,  // Floating point extension status
-    output logic [4:0] fflags_o,  // Floating-Point Accured Exceptions
-    output logic [2:0] frm_o,  // Floating-Point Dynamic Rounding Mode
-    output logic [6:0] fprec_o,  // Floating-Point Precision Control
-    // Vector extension
-    output riscv::xs_t vs_o,  // Vector extension status
-    // Decoder
-    output irq_ctrl_t irq_ctrl_o,  // interrupt management to id stage
-    // MMU
-    output logic en_translation_o,  // enable VA translation
-    output logic en_ld_st_translation_o,  // enable VA translation for load and stores
-    output riscv::priv_lvl_t      ld_st_priv_lvl_o,           // Privilege level at which load and stores should happen
+    // We've got an exception from the commit stage, take it - COMMIT_STAGE
+    input exception_t ex_i,
+    // Operation to perform on the CSR file - COMMIT_STAGE
+    input fu_op csr_op_i,
+    // Address of the register to read/write - EX_STAGE
+    input logic [11:0] csr_addr_i,
+    // Write data in - COMMIT_STAGE
+    input logic [riscv::XLEN-1:0] csr_wdata_i,
+    // Read data out - COMMIT_STAGE
+    output logic [riscv::XLEN-1:0] csr_rdata_o,
+    // Mark the FP sate as dirty - COMMIT_STAGE
+    input logic dirty_fp_state_i,
+    // Write fflags register e.g.: we are retiring a floating point instruction - COMMIT_STAGE
+    input logic csr_write_fflags_i,
+    // Mark the V state as dirty - ACC_DISPATCHER
+    input logic dirty_v_state_i,
+    // PC of instruction accessing the CSR - COMMIT_STAGE
+    input logic [riscv::VLEN-1:0] pc_i,
+    // attempts to access a CSR without appropriate privilege - COMMIT_STAGE
+    output exception_t csr_exception_o,
+    // Output the exception PC to PC Gen, the correct CSR (mepc, sepc) is set accordingly - FRONTEND
+    output logic [riscv::VLEN-1:0] epc_o,
+    // Return from exception, set the PC of epc_o - FRONTEND
+    output logic eret_o,
+    // Output base of exception vector, correct CSR is output (mtvec, stvec) - FRONTEND
+    output logic [riscv::VLEN-1:0] trap_vector_base_o,
+    // Current privilege level the CPU is in - EX_STAGE
+    output riscv::priv_lvl_t priv_lvl_o,
+    // Imprecise FP exception from the accelerator (fcsr.fflags format) - ACC_DISPATCHER
+    input logic [4:0] acc_fflags_ex_i,
+    // An FP exception from the accelerator occurred - ACC_DISPATCHER
+    input logic acc_fflags_ex_valid_i,
+    // Floating point extension status - ID_STAGE
+    output riscv::xs_t fs_o,
+    // Floating-Point Accured Exceptions - COMMIT_STAGE
+    output logic [4:0] fflags_o,
+    // Floating-Point Dynamic Rounding Mode - EX_STAGE
+    output logic [2:0] frm_o,
+    // Floating-Point Precision Control - EX_STAGE
+    output logic [6:0] fprec_o,
+    // Vector extension status - ID_STAGE
+    output riscv::xs_t vs_o,
+    // interrupt management to id stage - ID_STAGE
+    output irq_ctrl_t irq_ctrl_o,
+    // Enable virtual address translation - EX_STAGE
+    output logic en_translation_o,
+    // Enable virtual address translation for load and stores - EX_STAGE
+    output logic en_ld_st_translation_o,
+    // Privilege level at which load and stores should happen - EX_STAGE
+    output riscv::priv_lvl_t ld_st_priv_lvl_o,
+    // Supervisor User Memory - EX_STAGE
     output logic sum_o,
+    // Make Executable Readable - EX_STAGE
     output logic mxr_o,
+    // TO_BE_COMPLETED - EX_STAGE
     output logic [riscv::PPNW-1:0] satp_ppn_o,
+    // TO_BE_COMPLETED - EX_STAGE
     output logic [AsidWidth-1:0] asid_o,
-    // external interrupts
-    input logic [1:0] irq_i,  // external interrupt in
-    input logic ipi_i,  // inter processor interrupt -> connected to machine mode sw
-    input logic debug_req_i,  // debug request in
+    // external interrupt in - SUBSYSTEM
+    input logic [1:0] irq_i,
+    // inter processor interrupt -> connected to machine mode sw - SUBSYSTEM
+    input logic ipi_i,
+    // debug request in - ID_STAGE
+    input logic debug_req_i,
+    // TO_BE_COMPLETED - FRONTEND
     output logic set_debug_pc_o,
-    // Virtualization Support
-    output logic tvm_o,  // trap virtual memory
-    output logic tw_o,  // timeout wait
-    output logic tsr_o,  // trap sret
-    output logic debug_mode_o,  // we are in debug mode -> that will change some decoding
-    output logic single_step_o,  // we are in single-step mode
-    // Caches
-    output logic icache_en_o,  // L1 ICache Enable
-    output logic dcache_en_o,  // L1 DCache Enable
-    // Accelerator
-    output logic acc_cons_en_o,  // Accelerator memory consistent mode
+    // trap virtual memory - ID_STAGE
+    output logic tvm_o,
+    // timeout wait - ID_STAGE
+    output logic tw_o,
+    // trap sret - ID_STAGE
+    output logic tsr_o,
+    // we are in debug mode -> that will change some decoding - EX_STAGE
+    output logic debug_mode_o,
+    // we are in single-step mode - COMMIT_STAGE
+    output logic single_step_o,
+    // L1 ICache Enable - CACHE
+    output logic icache_en_o,
+    // L1 DCache Enable - CACHE
+    output logic dcache_en_o,
+    // Accelerator memory consistent mode - ACC_DISPATCHER
+    output logic acc_cons_en_o,
     // Performance Counter
-    output logic [11:0] perf_addr_o,  // read/write address to performance counter module
-    output logic [riscv::XLEN-1:0] perf_data_o,  // write data to performance counter module
-    input logic [riscv::XLEN-1:0] perf_data_i,  // read data from performance counter module
+    // read/write address to performance counter module - PERF_COUNTERS
+    output logic [11:0] perf_addr_o,
+    // write data to performance counter module - PERF_COUNTERS
+    output logic [riscv::XLEN-1:0] perf_data_o,
+    // read data from performance counter module - PERF_COUNTERS
+    input logic [riscv::XLEN-1:0] perf_data_i,
+    // TO_BE_COMPLETED - PERF_COUNTERS
     output logic perf_we_o,
-    // PMPs
-    output riscv::pmpcfg_t [15:0] pmpcfg_o,  // PMP configuration containing pmpcfg for max 16 PMPs
-    output logic [15:0][riscv::PLEN-3:0] pmpaddr_o,  // PMP addresses
-    output logic [31:0] mcountinhibit_o
+    // PMP configuration containing pmpcfg for max 16 PMPs - ACC_DISPATCHER
+    output riscv::pmpcfg_t [15:0] pmpcfg_o,
+    // PMP addresses - ACC_DISPATCHER
+    output logic [15:0][riscv::PLEN-3:0] pmpaddr_o,
+    // TO_BE_COMPLETED - PERF_COUNTERS
+    output logic [31:0] mcountinhibit_o,
+    // RVFI
+    output rvfi_probes_csr_t rvfi_csr_o
 );
+
   // internal signal to keep track of access exceptions
   logic read_access_exception, update_access_exception, privilege_violation;
   logic csr_we, csr_read;
@@ -134,6 +177,7 @@ module csr_regfile
   riscv::xlen_t mepc_q, mepc_d;
   riscv::xlen_t mcause_q, mcause_d;
   riscv::xlen_t mtval_q, mtval_d;
+  logic fiom_d, fiom_q;
 
   riscv::xlen_t stvec_q, stvec_d;
   riscv::xlen_t scounteren_q, scounteren_d;
@@ -150,20 +194,21 @@ module csr_regfile
   logic [63:0] cycle_q, cycle_d;
   logic [63:0] instret_q, instret_d;
 
-  riscv::pmpcfg_t [15:0] pmpcfg_q, pmpcfg_d;
-  logic [15:0][riscv::PLEN-3:0] pmpaddr_q, pmpaddr_d;
+  riscv::pmpcfg_t [15:0] pmpcfg_q, pmpcfg_d, pmpcfg_next;
+  logic [15:0][riscv::PLEN-3:0] pmpaddr_q, pmpaddr_d, pmpaddr_next;
   logic [MHPMCounterNum+3-1:0] mcountinhibit_d, mcountinhibit_q;
   logic [3:0] index;
 
   localparam riscv::xlen_t IsaCode = (riscv::XLEN'(CVA6Cfg.RVA) <<  0)                // A - Atomic Instructions extension
+  | (riscv::XLEN'(CVA6Cfg.RVB) << 1)  // C - Bitmanip extension
   | (riscv::XLEN'(CVA6Cfg.RVC) << 2)  // C - Compressed extension
-  | (riscv::XLEN'(CVA6Cfg.RVD) << 3)  // D - Double precsision floating-point extension
-  | (riscv::XLEN'(CVA6Cfg.RVF) << 5)  // F - Single precsision floating-point extension
+  | (riscv::XLEN'(CVA6Cfg.RVD) << 3)  // D - Double precision floating-point extension
+  | (riscv::XLEN'(CVA6Cfg.RVF) << 5)  // F - Single precision floating-point extension
   | (riscv::XLEN'(1) << 8)  // I - RV32I/64I/128I base ISA
   | (riscv::XLEN'(1) << 12)  // M - Integer Multiply/Divide extension
   | (riscv::XLEN'(0) << 13)  // N - User level interrupts supported
   | (riscv::XLEN'(CVA6Cfg.RVS) << 18)  // S - Supervisor mode implemented
-  | (riscv::XLEN'(1) << 20)  // U - User mode implemented
+  | (riscv::XLEN'(CVA6Cfg.RVU) << 20)  // U - User mode implemented
   | (riscv::XLEN'(CVA6Cfg.RVV) << 21)  // V - Vector extension
   | (riscv::XLEN'(CVA6Cfg.NSX) << 23)  // X - Non-standard extensions present
   | ((riscv::XLEN == 64 ? 2 : 1) << riscv::XLEN - 2);  // MXL
@@ -224,15 +269,23 @@ module csr_regfile
           end
         end
         // debug registers
-        riscv::CSR_DCSR: csr_rdata = {{riscv::XLEN - 32{1'b0}}, dcsr_q};
-        riscv::CSR_DPC: csr_rdata = dpc_q;
-        riscv::CSR_DSCRATCH0: csr_rdata = dscratch0_q;
-        riscv::CSR_DSCRATCH1: csr_rdata = dscratch1_q;
+        riscv::CSR_DCSR:
+        if (CVA6Cfg.DebugEn) csr_rdata = {{riscv::XLEN - 32{1'b0}}, dcsr_q};
+        else read_access_exception = 1'b1;
+        riscv::CSR_DPC:
+        if (CVA6Cfg.DebugEn) csr_rdata = dpc_q;
+        else read_access_exception = 1'b1;
+        riscv::CSR_DSCRATCH0:
+        if (CVA6Cfg.DebugEn) csr_rdata = dscratch0_q;
+        else read_access_exception = 1'b1;
+        riscv::CSR_DSCRATCH1:
+        if (CVA6Cfg.DebugEn) csr_rdata = dscratch1_q;
+        else read_access_exception = 1'b1;
         // trigger module registers
-        riscv::CSR_TSELECT: ;  // not implemented
-        riscv::CSR_TDATA1: ;  // not implemented
-        riscv::CSR_TDATA2: ;  // not implemented
-        riscv::CSR_TDATA3: ;  // not implemented
+        riscv::CSR_TSELECT: read_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA1: read_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA2: read_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA3: read_access_exception = 1'b1;  // not implemented
         // supervisor registers
         riscv::CSR_SSTATUS: begin
           if (CVA6Cfg.RVS)
@@ -295,13 +348,23 @@ module csr_regfile
         riscv::CSR_MCAUSE: csr_rdata = mcause_q;
         riscv::CSR_MTVAL: csr_rdata = mtval_q;
         riscv::CSR_MIP: csr_rdata = mip_q;
+        riscv::CSR_MENVCFG: begin
+          if (CVA6Cfg.RVU) csr_rdata = '0 | fiom_q;
+          else read_access_exception = 1'b1;
+        end
+        riscv::CSR_MENVCFGH: begin
+          if (CVA6Cfg.RVU && riscv::XLEN == 32) csr_rdata = '0;
+          else read_access_exception = 1'b1;
+        end
         riscv::CSR_MVENDORID: csr_rdata = OPENHWGROUP_MVENDORID;
         riscv::CSR_MARCHID: csr_rdata = ARIANE_MARCHID;
         riscv::CSR_MIMPID: csr_rdata = '0;  // not implemented
         riscv::CSR_MHARTID: csr_rdata = hart_id_i;
         riscv::CSR_MCONFIGPTR: csr_rdata = '0;  // not implemented
         riscv::CSR_MCOUNTINHIBIT:
-        csr_rdata = {{(riscv::XLEN - (MHPMCounterNum + 3)) {1'b0}}, mcountinhibit_q};
+        if (PERF_COUNTER_EN)
+          csr_rdata = {{(riscv::XLEN - (MHPMCounterNum + 3)) {1'b0}}, mcountinhibit_q};
+        else read_access_exception = 1'b1;
         // Counters and Timers
         riscv::CSR_MCYCLE: csr_rdata = cycle_q[riscv::XLEN-1:0];
         riscv::CSR_MCYCLEH:
@@ -550,12 +613,13 @@ module csr_regfile
     if (!debug_mode_q) begin
       // increase instruction retired counter
       for (int i = 0; i < CVA6Cfg.NrCommitPorts; i++) begin
-        if (commit_ack_i[i] && !ex_i.valid && !mcountinhibit_q[2]) instret++;
+        if (commit_ack_i[i] && !ex_i.valid && (!PERF_COUNTER_EN || (PERF_COUNTER_EN && !mcountinhibit_q[2])))
+          instret++;
       end
       instret_d = instret;
       // increment the cycle count
-      if (ENABLE_CYCLE_COUNT && !mcountinhibit_q[0]) cycle_d = cycle_q + 1'b1;
-      else cycle_d = instret;
+      if (!PERF_COUNTER_EN || (PERF_COUNTER_EN && !mcountinhibit_q[0])) cycle_d = cycle_q + 1'b1;
+      else cycle_d = cycle_q;
     end
 
     eret_o                  = 1'b0;
@@ -598,6 +662,7 @@ module csr_regfile
     mcounteren_d           = mcounteren_q;
     mscratch_d             = mscratch_q;
     mtval_d                = mtval_q;
+    fiom_d                 = fiom_q;
     dcache_d               = dcache_q;
     icache_d               = icache_q;
     acc_cons_d             = acc_cons_q;
@@ -662,22 +727,32 @@ module csr_regfile
         end
         // debug CSR
         riscv::CSR_DCSR: begin
-          dcsr_d           = csr_wdata[31:0];
-          // debug is implemented
-          dcsr_d.xdebugver = 4'h4;
-          // currently not supported
-          dcsr_d.nmip      = 1'b0;
-          dcsr_d.stopcount = 1'b0;
-          dcsr_d.stoptime  = 1'b0;
+          if (CVA6Cfg.DebugEn) begin
+            dcsr_d           = csr_wdata[31:0];
+            // debug is implemented
+            dcsr_d.xdebugver = 4'h4;
+            // currently not supported
+            dcsr_d.nmip      = 1'b0;
+            dcsr_d.stopcount = 1'b0;
+            dcsr_d.stoptime  = 1'b0;
+          end else begin
+            update_access_exception = 1'b1;
+          end
         end
-        riscv::CSR_DPC:       dpc_d = csr_wdata;
-        riscv::CSR_DSCRATCH0: dscratch0_d = csr_wdata;
-        riscv::CSR_DSCRATCH1: dscratch1_d = csr_wdata;
+        riscv::CSR_DPC:
+        if (CVA6Cfg.DebugEn) dpc_d = csr_wdata;
+        else update_access_exception = 1'b1;
+        riscv::CSR_DSCRATCH0:
+        if (CVA6Cfg.DebugEn) dscratch0_d = csr_wdata;
+        else update_access_exception = 1'b1;
+        riscv::CSR_DSCRATCH1:
+        if (CVA6Cfg.DebugEn) dscratch1_d = csr_wdata;
+        else update_access_exception = 1'b1;
         // trigger module CSRs
-        riscv::CSR_TSELECT:   ;  // not implemented
-        riscv::CSR_TDATA1:    ;  // not implemented
-        riscv::CSR_TDATA2:    ;  // not implemented
-        riscv::CSR_TDATA3:    ;  // not implemented
+        riscv::CSR_TSELECT: update_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA1: update_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA2: update_access_exception = 1'b1;  // not implemented
+        riscv::CSR_TDATA3: update_access_exception = 1'b1;  // not implemented
         // sstatus is a subset of mstatus - mask it accordingly
         riscv::CSR_SSTATUS: begin
           if (CVA6Cfg.RVS) begin
@@ -734,7 +809,7 @@ module csr_regfile
         if (CVA6Cfg.RVS) scause_d = csr_wdata;
         else update_access_exception = 1'b1;
         riscv::CSR_STVAL:
-        if (CVA6Cfg.RVS) stval_d = csr_wdata;
+        if (CVA6Cfg.RVS && CVA6Cfg.TvalEn) stval_d = csr_wdata;
         else update_access_exception = 1'b1;
         // supervisor address translation and protection
         riscv::CSR_SATP: begin
@@ -771,6 +846,7 @@ module csr_regfile
           mstatus_d.wpri1 = 1'b0;
           mstatus_d.wpri2 = 1'b0;
           mstatus_d.wpri0 = 1'b0;
+          mstatus_d.ube   = 1'b0;  // CVA6 is little-endian
           // this register has side-effects on other registers, flush the pipeline
           flush_o         = 1'b1;
         end
@@ -814,18 +890,29 @@ module csr_regfile
           // alignment constraint of 64 * 4 bytes
           if (csr_wdata[0]) mtvec_d = {csr_wdata[riscv::XLEN-1:8], 7'b0, csr_wdata[0]};
         end
-        riscv::CSR_MCOUNTEREN: mcounteren_d = {{riscv::XLEN - 32{1'b0}}, csr_wdata[31:0]};
+        riscv::CSR_MCOUNTEREN: begin
+          if (CVA6Cfg.RVU) mcounteren_d = {{riscv::XLEN - 32{1'b0}}, csr_wdata[31:0]};
+          else update_access_exception = 1'b1;
+        end
 
         riscv::CSR_MSCRATCH: mscratch_d = csr_wdata;
         riscv::CSR_MEPC: mepc_d = {csr_wdata[riscv::XLEN-1:1], 1'b0};
         riscv::CSR_MCAUSE: mcause_d = csr_wdata;
-        riscv::CSR_MTVAL: mtval_d = csr_wdata;
+        riscv::CSR_MTVAL: begin
+          if (CVA6Cfg.TvalEn) mtval_d = csr_wdata;
+          else update_access_exception = 1'b1;
+        end
         riscv::CSR_MIP: begin
           mask  = riscv::MIP_SSIP | riscv::MIP_STIP | riscv::MIP_SEIP;
           mip_d = (mip_q & ~mask) | (csr_wdata & mask);
         end
+        riscv::CSR_MENVCFG: if (CVA6Cfg.RVU) fiom_d = csr_wdata[0];
+        riscv::CSR_MENVCFGH: begin
+          if (!CVA6Cfg.RVU || riscv::XLEN != 32) update_access_exception = 1'b1;
+        end
         riscv::CSR_MCOUNTINHIBIT:
-        mcountinhibit_d = {csr_wdata[MHPMCounterNum+2:2], 1'b0, csr_wdata[0]};
+        if (PERF_COUNTER_EN) mcountinhibit_d = {csr_wdata[MHPMCounterNum+2:2], 1'b0, csr_wdata[0]};
+        else update_access_exception = 1'b1;
         // performance counters
         riscv::CSR_MCYCLE: cycle_d[riscv::XLEN-1:0] = csr_wdata;
         riscv::CSR_MCYCLEH:
@@ -1000,7 +1087,9 @@ module csr_regfile
 
     mstatus_d.sxl = riscv::XLEN_64;
     mstatus_d.uxl = riscv::XLEN_64;
-
+    if (!CVA6Cfg.RVU) begin
+      mstatus_d.mpp = riscv::PRIV_LVL_M;
+    end
     // mark the floating point extension register as dirty
     if (CVA6Cfg.FpPresent && (dirty_fp_state_csr || dirty_fp_state_i)) begin
       mstatus_d.fs = riscv::Dirty;
@@ -1048,7 +1137,7 @@ module csr_regfile
     trap_to_priv_lvl = riscv::PRIV_LVL_M;
     // Exception is taken and we are not in debug mode
     // exceptions in debug mode don't update any fields
-    if (!debug_mode_q && ex_i.cause != riscv::DEBUG_REQUEST && ex_i.valid) begin
+    if ((CVA6Cfg.DebugEn && !debug_mode_q && ex_i.cause != riscv::DEBUG_REQUEST && ex_i.valid) || (!CVA6Cfg.DebugEn && ex_i.valid)) begin
       // do not flush, flush is reserved for CSR writes with side effects
       flush_o = 1'b0;
       // figure out where to trap to
@@ -1062,7 +1151,8 @@ module csr_regfile
           )-1:0]]))) begin
         // traps never transition from a more-privileged mode to a less privileged mode
         // so if we are already in M mode, stay there
-        trap_to_priv_lvl = (priv_lvl_o == riscv::PRIV_LVL_M) ? riscv::PRIV_LVL_M : riscv::PRIV_LVL_S;
+        if (priv_lvl_o == riscv::PRIV_LVL_M) trap_to_priv_lvl = riscv::PRIV_LVL_M;
+        else trap_to_priv_lvl = riscv::PRIV_LVL_S;
       end
 
       // trap to supervisor mode
@@ -1096,14 +1186,18 @@ module csr_regfile
         // set epc
         mepc_d = {{riscv::XLEN - riscv::VLEN{pc_i[riscv::VLEN-1]}}, pc_i};
         // set mtval or stval
-        mtval_d        = (ariane_pkg::ZERO_TVAL
-                                  && (ex_i.cause inside {
-                                    riscv::ILLEGAL_INSTR,
-                                    riscv::BREAKPOINT,
-                                    riscv::ENV_CALL_UMODE,
-                                    riscv::ENV_CALL_SMODE,
-                                    riscv::ENV_CALL_MMODE
-                                  } || ex_i.cause[riscv::XLEN-1])) ? '0 : ex_i.tval;
+        if (CVA6Cfg.TvalEn) begin
+          mtval_d        = (ariane_pkg::ZERO_TVAL
+                                    && (ex_i.cause inside {
+                                      riscv::ILLEGAL_INSTR,
+                                      riscv::BREAKPOINT,
+                                      riscv::ENV_CALL_UMODE,
+                                      riscv::ENV_CALL_SMODE,
+                                      riscv::ENV_CALL_MMODE
+                                    } || ex_i.cause[riscv::XLEN-1])) ? '0 : ex_i.tval;
+        end else begin
+          mtval_d = '0;
+        end
       end
 
       priv_lvl_d = trap_to_priv_lvl;
@@ -1124,7 +1218,7 @@ module csr_regfile
       // trigger module fired
 
       // caused by a breakpoint
-      if (ex_i.valid && ex_i.cause == riscv::BREAKPOINT) begin
+      if (CVA6Cfg.DebugEn && ex_i.valid && ex_i.cause == riscv::BREAKPOINT) begin
         dcsr_d.prv = priv_lvl_o;
         // check that we actually want to enter debug depending on the privilege level we are currently in
         unique case (priv_lvl_o)
@@ -1139,8 +1233,10 @@ module csr_regfile
             end
           end
           riscv::PRIV_LVL_U: begin
-            debug_mode_d   = dcsr_q.ebreaku;
-            set_debug_pc_o = dcsr_q.ebreaku;
+            if (CVA6Cfg.RVU) begin
+              debug_mode_d   = dcsr_q.ebreaku;
+              set_debug_pc_o = dcsr_q.ebreaku;
+            end
           end
           default: ;
         endcase
@@ -1150,7 +1246,7 @@ module csr_regfile
       end
 
       // we've got a debug request
-      if (ex_i.valid && ex_i.cause == riscv::DEBUG_REQUEST) begin
+      if (CVA6Cfg.DebugEn && ex_i.valid && ex_i.cause == riscv::DEBUG_REQUEST) begin
         dcsr_d.prv = priv_lvl_o;
         // save the PC
         dpc_d = {{riscv::XLEN - riscv::VLEN{pc_i[riscv::VLEN-1]}}, pc_i};
@@ -1163,7 +1259,7 @@ module csr_regfile
       end
 
       // single step enable and we just retired an instruction
-      if (dcsr_q.step && commit_ack_i[0]) begin
+      if (CVA6Cfg.DebugEn && dcsr_q.step && commit_ack_i[0]) begin
         dcsr_d.prv = priv_lvl_o;
         // valid CTRL flow change
         if (commit_instr_i[0].fu == CTRL_FLOW) begin
@@ -1191,7 +1287,7 @@ module csr_regfile
       end
     end
     // go in halt-state again when we encounter an exception
-    if (debug_mode_q && ex_i.valid && ex_i.cause == riscv::BREAKPOINT) begin
+    if (CVA6Cfg.DebugEn && debug_mode_q && ex_i.valid && ex_i.cause == riscv::BREAKPOINT) begin
       set_debug_pc_o = 1'b1;
     end
 
@@ -1214,14 +1310,17 @@ module csr_regfile
     // mode is changed to y; xPIE is set to 1; and xPP is set to U
     if (mret) begin
       // return from exception, IF doesn't care from where we are returning
-      eret_o         = 1'b1;
+      eret_o        = 1'b1;
       // return to the previous privilege level and restore all enable flags
       // get the previous machine interrupt enable flag
-      mstatus_d.mie  = mstatus_q.mpie;
+      mstatus_d.mie = mstatus_q.mpie;
       // restore the previous privilege level
-      priv_lvl_d     = mstatus_q.mpp;
-      // set mpp to user mode
-      mstatus_d.mpp  = riscv::PRIV_LVL_U;
+      priv_lvl_d    = mstatus_q.mpp;
+      mstatus_d.mpp = riscv::PRIV_LVL_M;
+      if (CVA6Cfg.RVU) begin
+        // set mpp to user mode
+        mstatus_d.mpp = riscv::PRIV_LVL_U;
+      end
       // set mpie to 1
       mstatus_d.mpie = 1'b1;
     end
@@ -1240,7 +1339,7 @@ module csr_regfile
     end
 
     // return from debug mode
-    if (dret) begin
+    if (CVA6Cfg.DebugEn && dret) begin
       // return from exception, IF doesn't care from where we are returning
       eret_o       = 1'b1;
       // restore the previous privilege level
@@ -1266,29 +1365,27 @@ module csr_regfile
       CSR_SET:   csr_wdata = csr_wdata_i | csr_rdata;
       CSR_CLEAR: csr_wdata = (~csr_wdata_i) & csr_rdata;
       CSR_READ:  csr_we = 1'b0;
-      SRET: begin
-        if (CVA6Cfg.RVS) begin
-          // the return should not have any write or read side-effects
-          csr_we   = 1'b0;
-          csr_read = 1'b0;
-          sret     = 1'b1;  // signal a return from supervisor mode
-        end
-      end
       MRET: begin
         // the return should not have any write or read side-effects
         csr_we   = 1'b0;
         csr_read = 1'b0;
         mret     = 1'b1;  // signal a return from machine mode
       end
-      DRET: begin
-        // the return should not have any write or read side-effects
-        csr_we   = 1'b0;
-        csr_read = 1'b0;
-        dret     = 1'b1;  // signal a return from debug mode
-      end
       default: begin
-        csr_we   = 1'b0;
-        csr_read = 1'b0;
+        if (CVA6Cfg.RVS && csr_op_i == SRET) begin
+          // the return should not have any write or read side-effects
+          csr_we   = 1'b0;
+          csr_read = 1'b0;
+          sret     = 1'b1;  // signal a return from supervisor mode
+        end else if (CVA6Cfg.DebugEn && csr_op_i == DRET) begin
+          // the return should not have any write or read side-effects
+          csr_we   = 1'b0;
+          csr_read = 1'b0;
+          dret     = 1'b1;  // signal a return from debug mode
+        end else begin
+          csr_we   = 1'b0;
+          csr_read = 1'b0;
+        end
       end
     endcase
     // if we are violating our privilges do not update the architectural state
@@ -1304,7 +1401,8 @@ module csr_regfile
   assign irq_ctrl_o.mideleg = mideleg_q;
   assign irq_ctrl_o.global_enable = (~debug_mode_q)
       // interrupts are enabled during single step or we are not stepping
-      & (~dcsr_q.step | dcsr_q.stepie)
+      // No need to check interrupts during single step if we don't support DEBUG mode
+      & (~CVA6Cfg.DebugEn | (~dcsr_q.step | dcsr_q.stepie))
                                     & ((mstatus_q.mie & (priv_lvl_o == riscv::PRIV_LVL_M))
                                     | (priv_lvl_o != riscv::PRIV_LVL_M));
 
@@ -1320,18 +1418,19 @@ module csr_regfile
         privilege_violation = 1'b1;
       end
       // check access to debug mode only CSRs
-      if (csr_addr_i[11:4] == 8'h7b && !debug_mode_q) begin
+      if ((!CVA6Cfg.DebugEn && csr_addr_i[11:4] == 8'h7b) || (CVA6Cfg.DebugEn && csr_addr_i[11:4] == 8'h7b && !debug_mode_q)) begin
         privilege_violation = 1'b1;
       end
       // check counter-enabled counter CSR accesses
       // counter address range is C00 to C1F
       if (csr_addr_i inside {[riscv::CSR_CYCLE : riscv::CSR_HPM_COUNTER_31]}) begin
-        unique case (priv_lvl_o)
-          riscv::PRIV_LVL_M: privilege_violation = 1'b0;
-          riscv::PRIV_LVL_S: if (CVA6Cfg.RVS) privilege_violation = ~mcounteren_q[csr_addr_i[4:0]];
-          riscv::PRIV_LVL_U:
-          privilege_violation = ~mcounteren_q[csr_addr_i[4:0]] & ~scounteren_q[csr_addr_i[4:0]];
-        endcase
+        if (priv_lvl_o == riscv::PRIV_LVL_S && CVA6Cfg.RVS) begin
+          privilege_violation = ~mcounteren_q[csr_addr_i[4:0]];
+        end else if (priv_lvl_o == riscv::PRIV_LVL_U && CVA6Cfg.RVU) begin
+          privilege_violation = ~mcounteren_q[csr_addr_i[4:0]] | ~scounteren_q[csr_addr_i[4:0]];
+        end else if (priv_lvl_o == riscv::PRIV_LVL_M) begin
+          privilege_violation = 1'b0;
+        end
       end
     end
   end
@@ -1366,11 +1465,11 @@ module csr_regfile
     wfi_d = wfi_q;
     // if there is any (enabled) interrupt pending un-stall the core
     // also un-stall if we want to enter debug mode
-    if (|(mip_q & mie_q) || debug_req_i || irq_i[1]) begin
+    if (|(mip_q & mie_q) || (CVA6Cfg.DebugEn && debug_req_i) || irq_i[1]) begin
       wfi_d = 1'b0;
       // or alternatively if there is no exception pending and we are not in debug mode wait here
       // for the interrupt
-    end else if (!debug_mode_q && csr_op_i == WFI && !ex_i.valid) begin
+    end else if (((CVA6Cfg.DebugEn && !debug_mode_q) && csr_op_i == WFI && !ex_i.valid) || (!CVA6Cfg.DebugEn && csr_op_i == WFI && !ex_i.valid)) begin
       wfi_d = 1'b1;
     end
   end
@@ -1384,7 +1483,7 @@ module csr_regfile
     end
 
     // if we are in debug mode jump to a specific address
-    if (debug_mode_q) begin
+    if (CVA6Cfg.DebugEn && debug_mode_q) begin
       trap_vector_base_o = CVA6Cfg.DmBaseAddress[riscv::VLEN-1:0] + CVA6Cfg.ExceptionAddress[riscv::VLEN-1:0];
     end
 
@@ -1394,7 +1493,7 @@ module csr_regfile
     // privilege level we are jumping and whether the vectored mode is
     // activated for _that_ privilege level.
     if (ex_i.cause[riscv::XLEN-1] &&
-                ((trap_to_priv_lvl == riscv::PRIV_LVL_M && mtvec_q[0])
+                ((((CVA6Cfg.RVS || CVA6Cfg.RVU) && trap_to_priv_lvl == riscv::PRIV_LVL_M && mtvec_q[0]) || (!CVA6Cfg.RVS && !CVA6Cfg.RVU && mtvec_q[0]))
                || (CVA6Cfg.RVS && trap_to_priv_lvl == riscv::PRIV_LVL_S && stvec_q[0]))) begin
       trap_vector_base_o[7:2] = ex_i.cause[5:0];
     end
@@ -1405,7 +1504,7 @@ module csr_regfile
       epc_o = sepc_q[riscv::VLEN-1:0];
     end
     // we are returning from debug mode, to take the dpc register
-    if (dret) begin
+    if (CVA6Cfg.DebugEn && dret) begin
       epc_o = dpc_q[riscv::VLEN-1:0];
     end
   end
@@ -1434,7 +1533,7 @@ module csr_regfile
   end
 
   // in debug mode we execute with privilege level M
-  assign priv_lvl_o = (debug_mode_q) ? riscv::PRIV_LVL_M : priv_lvl_q;
+  assign priv_lvl_o = (CVA6Cfg.DebugEn && debug_mode_q) ? riscv::PRIV_LVL_M : priv_lvl_q;
   // FPU outputs
   assign fflags_o = fcsr_q.fflags;
   assign frm_o = fcsr_q.frm;
@@ -1458,29 +1557,31 @@ module csr_regfile
 `else
   assign icache_en_o = icache_q[0] & (~debug_mode_q);
 `endif
-  assign dcache_en_o     = dcache_q[0];
-  assign acc_cons_en_o   = CVA6Cfg.EnableAccelerator ? acc_cons_q[0] : 1'b0;
+  assign dcache_en_o = dcache_q[0];
+  assign acc_cons_en_o = CVA6Cfg.EnableAccelerator ? acc_cons_q[0] : 1'b0;
 
   // determine if mprv needs to be considered if in debug mode
-  assign mprv            = (debug_mode_q && !dcsr_q.mprven) ? 1'b0 : mstatus_q.mprv;
-  assign debug_mode_o    = debug_mode_q;
-  assign single_step_o   = dcsr_q.step;
+  assign mprv = (CVA6Cfg.DebugEn && debug_mode_q && !dcsr_q.mprven) ? 1'b0 : mstatus_q.mprv;
+  assign debug_mode_o = debug_mode_q;
+  assign single_step_o = dcsr_q.step;
   assign mcountinhibit_o = {{29 - MHPMCounterNum{1'b0}}, mcountinhibit_q};
 
   // sequential process
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      priv_lvl_q       <= riscv::PRIV_LVL_M;
+      priv_lvl_q   <= riscv::PRIV_LVL_M;
       // floating-point registers
-      fcsr_q           <= '0;
+      fcsr_q       <= '0;
       // debug signals
-      debug_mode_q     <= 1'b0;
-      dcsr_q           <= '0;
-      dcsr_q.prv       <= riscv::PRIV_LVL_M;
-      dcsr_q.xdebugver <= 4'h4;
-      dpc_q            <= '0;
-      dscratch0_q      <= {riscv::XLEN{1'b0}};
-      dscratch1_q      <= {riscv::XLEN{1'b0}};
+      debug_mode_q <= 1'b0;
+      if (CVA6Cfg.DebugEn) begin
+        dcsr_q           <= '0;
+        dcsr_q.prv       <= riscv::PRIV_LVL_M;
+        dcsr_q.xdebugver <= 4'h4;
+        dpc_q            <= '0;
+        dscratch0_q      <= {riscv::XLEN{1'b0}};
+        dscratch1_q      <= {riscv::XLEN{1'b0}};
+      end
       // machine mode registers
       mstatus_q        <= 64'b0;
       // set to boot address + direct mode + 4 byte offset which is the initial trap
@@ -1493,6 +1594,7 @@ module csr_regfile
       mcounteren_q     <= {riscv::XLEN{1'b0}};
       mscratch_q       <= {riscv::XLEN{1'b0}};
       mtval_q          <= {riscv::XLEN{1'b0}};
+      fiom_q           <= '0;
       dcache_q         <= {{riscv::XLEN - 1{1'b0}}, 1'b1};
       icache_q         <= {{riscv::XLEN - 1{1'b0}}, 1'b1};
       mcountinhibit_q  <= '0;
@@ -1517,18 +1619,27 @@ module csr_regfile
       // wait for interrupt
       wfi_q                  <= 1'b0;
       // pmp
-      pmpcfg_q               <= '0;
-      pmpaddr_q              <= '0;
+      for (int i = 0; i < 16; i++) begin
+        if (i < CVA6Cfg.NrPMPEntries) begin
+          pmpcfg_q[i]  <= riscv::pmpcfg_t'(CVA6Cfg.PMPCfgRstVal[i]);
+          pmpaddr_q[i] <= CVA6Cfg.PMPAddrRstVal[i][riscv::PLEN-3:0];
+        end else begin
+          pmpcfg_q[i]  <= '0;
+          pmpaddr_q[i] <= '0;
+        end
+      end
     end else begin
-      priv_lvl_q       <= priv_lvl_d;
+      priv_lvl_q <= priv_lvl_d;
       // floating-point registers
-      fcsr_q           <= fcsr_d;
+      fcsr_q     <= fcsr_d;
       // debug signals
-      debug_mode_q     <= debug_mode_d;
-      dcsr_q           <= dcsr_d;
-      dpc_q            <= dpc_d;
-      dscratch0_q      <= dscratch0_d;
-      dscratch1_q      <= dscratch1_d;
+      if (CVA6Cfg.DebugEn) begin
+        debug_mode_q <= debug_mode_d;
+        dcsr_q       <= dcsr_d;
+        dpc_q        <= dpc_d;
+        dscratch0_q  <= dscratch0_d;
+        dscratch1_q  <= dscratch1_d;
+      end
       // machine mode registers
       mstatus_q        <= mstatus_d;
       mtvec_rst_load_q <= 1'b0;
@@ -1539,11 +1650,12 @@ module csr_regfile
       mcause_q         <= mcause_d;
       mcounteren_q     <= mcounteren_d;
       mscratch_q       <= mscratch_d;
-      mtval_q          <= mtval_d;
-      dcache_q         <= dcache_d;
-      icache_q         <= icache_d;
-      mcountinhibit_q  <= mcountinhibit_d;
-      acc_cons_q       <= acc_cons_d;
+      if (CVA6Cfg.TvalEn) mtval_q <= mtval_d;
+      fiom_q          <= fiom_d;
+      dcache_q        <= dcache_d;
+      icache_q        <= icache_d;
+      mcountinhibit_q <= mcountinhibit_d;
+      acc_cons_q      <= acc_cons_d;
       // supervisor mode registers
       if (CVA6Cfg.RVS) begin
         medeleg_q    <= medeleg_d;
@@ -1553,8 +1665,8 @@ module csr_regfile
         stvec_q      <= stvec_d;
         scounteren_q <= scounteren_d;
         sscratch_q   <= sscratch_d;
-        stval_q      <= stval_d;
-        satp_q       <= satp_d;
+        if (CVA6Cfg.TvalEn) stval_q <= stval_d;
+        satp_q <= satp_d;
       end
       // timer and counters
       cycle_q                <= cycle_d;
@@ -1564,19 +1676,29 @@ module csr_regfile
       // wait for interrupt
       wfi_q                  <= wfi_d;
       // pmp
-      for (int i = 0; i < 16; i++) begin
-        if (i < CVA6Cfg.NrPMPEntries) begin
-          // We only support >=8-byte granularity, NA4 is disabled
-          if(pmpcfg_d[i].addr_mode != riscv::NA4 && !(pmpcfg_d[i].access_type.r == '0 && pmpcfg_d[i].access_type.w == '1)) begin
-            pmpcfg_q[i] <= pmpcfg_d[i];
-          end else begin
-            pmpcfg_q[i] <= pmpcfg_q[i];
-          end
-          pmpaddr_q[i] <= pmpaddr_d[i];
+      pmpcfg_q               <= pmpcfg_next;
+      pmpaddr_q              <= pmpaddr_next;
+    end
+  end
+
+  // write logic pmp
+  always_comb begin : write
+    for (int i = 0; i < 16; i++) begin
+      if (i < CVA6Cfg.NrPMPEntries) begin
+        // We only support >=8-byte granularity, NA4 is disabled
+        if(!CVA6Cfg.PMPEntryReadOnly[i] && pmpcfg_d[i].addr_mode != riscv::NA4 && !(pmpcfg_d[i].access_type.r == '0 && pmpcfg_d[i].access_type.w == '1)) begin
+          pmpcfg_next[i] = pmpcfg_d[i];
         end else begin
-          pmpcfg_q[i]  <= '0;
-          pmpaddr_q[i] <= '0;
+          pmpcfg_next[i] = pmpcfg_q[i];
         end
+        if (!CVA6Cfg.PMPEntryReadOnly[i]) begin
+          pmpaddr_next[i] = pmpaddr_d[i];
+        end else begin
+          pmpaddr_next[i] = pmpaddr_q[i];
+        end
+      end else begin
+        pmpcfg_next[i]  = '0;
+        pmpaddr_next[i] = '0;
       end
     end
   end
@@ -1592,4 +1714,45 @@ module csr_regfile
     $stop();
   end
   //pragma translate_on
+
+
+  //RVFI CSR
+
+  //-------------
+  // RVFI
+  //-------------
+  assign rvfi_csr_o.fcsr_q = CVA6Cfg.FpPresent ? fcsr_q : '0;
+  assign rvfi_csr_o.dcsr_q = CVA6Cfg.DebugEn ? dcsr_q : '0;
+  assign rvfi_csr_o.dpc_q = CVA6Cfg.DebugEn ? dpc_q : '0;
+  assign rvfi_csr_o.dscratch0_q = CVA6Cfg.DebugEn ? dscratch0_q : '0;
+  assign rvfi_csr_o.dscratch1_q = CVA6Cfg.DebugEn ? dscratch1_q : '0;
+  assign rvfi_csr_o.mie_q = mie_q;
+  assign rvfi_csr_o.mip_q = mip_q;
+  assign rvfi_csr_o.stvec_q = CVA6Cfg.RVS ? stvec_q : '0;
+  assign rvfi_csr_o.scounteren_q = CVA6Cfg.RVS ? scounteren_q : '0;
+  assign rvfi_csr_o.sscratch_q = CVA6Cfg.RVS ? sscratch_q : '0;
+  assign rvfi_csr_o.sepc_q = CVA6Cfg.RVS ? sepc_q : '0;
+  assign rvfi_csr_o.scause_q = CVA6Cfg.RVS ? scause_q : '0;
+  assign rvfi_csr_o.stval_q = CVA6Cfg.RVS ? stval_q : '0;
+  assign rvfi_csr_o.satp_q = CVA6Cfg.RVS ? satp_q : '0;
+  assign rvfi_csr_o.mstatus_extended = mstatus_extended;
+  assign rvfi_csr_o.medeleg_q = CVA6Cfg.RVS ? medeleg_q : '0;
+  assign rvfi_csr_o.mideleg_q = CVA6Cfg.RVS ? mideleg_q : '0;
+  assign rvfi_csr_o.mtvec_q = mtvec_q;
+  assign rvfi_csr_o.mcounteren_q = mcounteren_q;
+  assign rvfi_csr_o.mscratch_q = mscratch_q;
+  assign rvfi_csr_o.mepc_q = mepc_q;
+  assign rvfi_csr_o.mcause_q = mcause_q;
+  assign rvfi_csr_o.mtval_q = mtval_q;
+  assign rvfi_csr_o.fiom_q = fiom_q;
+  assign rvfi_csr_o.mcountinhibit_q = mcountinhibit_q;
+  assign rvfi_csr_o.cycle_q = cycle_q;
+  assign rvfi_csr_o.instret_q = instret_q;
+  assign rvfi_csr_o.dcache_q = dcache_q;
+  assign rvfi_csr_o.icache_q = icache_q;
+  assign rvfi_csr_o.acc_cons_q = CVA6Cfg.EnableAccelerator ? acc_cons_q : '0;
+  assign rvfi_csr_o.pmpcfg_q = pmpcfg_q;
+  assign rvfi_csr_o.pmpaddr_q = pmpaddr_q;
+
+
 endmodule

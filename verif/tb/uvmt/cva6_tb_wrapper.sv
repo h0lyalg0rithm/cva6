@@ -32,12 +32,12 @@ import uvm_pkg::*;
 
 import "DPI-C" function read_elf(input string filename);
 import "DPI-C" function byte get_section(output longint address, output longint len);
-import "DPI-C" context function void read_section(input longint address, inout byte buffer[]);
+import "DPI-C" context function void read_section_sv(input longint address, inout byte buffer[]);
 
 module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
   parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
-  parameter bit IsRVFI = 1'b0,
   parameter type rvfi_instr_t = logic,
+  parameter type rvfi_csr_t = logic,
   //
   parameter int unsigned AXI_USER_EN       = 0,
   parameter int unsigned NUM_WORDS         = 2**25
@@ -47,6 +47,7 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
   input  logic [XLEN-1:0]              boot_addr_i,
   output logic [31:0]                  tb_exit_o,
   output rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0] rvfi_o,
+  output rvfi_csr_t                    rvfi_csr_o,
   input  cvxif_pkg::cvxif_resp_t       cvxif_resp,
   output cvxif_pkg::cvxif_req_t        cvxif_req,
   uvma_axi_intf                        axi_slave,
@@ -54,19 +55,27 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
   uvmt_default_inputs_intf             default_inputs_vif
 );
 
+  localparam type rvfi_probes_t = struct packed { 
+      ariane_pkg::rvfi_probes_csr_t csr;
+      ariane_pkg::rvfi_probes_instr_t instr;
+  };
+  
   ariane_axi::req_t    axi_ariane_req;
   ariane_axi::resp_t   axi_ariane_resp;
 
   static uvm_cmdline_processor uvcl = uvm_cmdline_processor::get_inst();
   string binary = "";
 
-  rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0]  rvfi;
-  assign rvfi_o = rvfi;
-
+  rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0]  rvfi_instr;
+  rvfi_probes_t rvfi_probes;
+  rvfi_csr_t rvfi_csr;
+  assign rvfi_o = rvfi_instr;
+  assign rvfi_csr_o = rvfi_csr;
+  
   cva6 #(
      .CVA6Cfg ( CVA6Cfg ),
-     .IsRVFI ( IsRVFI )
-  ) i_cva6 (
+     .rvfi_probes_t        ( rvfi_probes_t       )
+   ) i_cva6 (
     .clk_i                ( clk_i                     ),
     .rst_ni               ( rst_ni                    ),
     .boot_addr_i          ( boot_addr_i               ),//Driving the boot_addr value from the core control agent
@@ -75,7 +84,7 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
     .ipi_i                ( default_inputs_vif.ipi       ),
     .time_irq_i           ( default_inputs_vif.time_irq  ),
     .debug_req_i          ( default_inputs_vif.debug_req ),
-    .rvfi_o               ( rvfi                      ),
+    .rvfi_probes_o        ( rvfi_probes                  ),
     .cvxif_req_o          ( cvxif_req                 ),
     .cvxif_resp_i         ( cvxif_resp                ),
     .noc_req_o            ( axi_ariane_req            ),
@@ -86,17 +95,32 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
   // RVFI
   //----------------------------------------------------------------------------
 
+  cva6_rvfi #(
+      .CVA6Cfg   (CVA6Cfg),
+      .rvfi_instr_t(rvfi_instr_t),
+      .rvfi_csr_t(rvfi_csr_t),
+      .rvfi_probes_t(rvfi_probes_t)
+  ) i_cva6_rvfi (
+      .clk_i     (clk_i),
+      .rst_ni    (rst_ni),
+      .rvfi_probes_i(rvfi_probes),
+      .rvfi_instr_o(rvfi_instr),
+      .rvfi_csr_o(rvfi_csr)
+  );
+
   rvfi_tracer  #(
     .CVA6Cfg(CVA6Cfg),
     .rvfi_instr_t(rvfi_instr_t),
+    .rvfi_csr_t(rvfi_csr_t),
     //
     .HART_ID(8'h0),
     .DEBUG_START(0),
     .DEBUG_STOP(0)
-  ) rvfi_tracer_i (
+  ) i_rvfi_tracer (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
-    .rvfi_i(rvfi),
+    .rvfi_i(rvfi_instr),
+    .rvfi_csr_i(rvfi_csr),
     .end_of_test_o(tb_exit_o)
   ) ;
 
@@ -163,6 +187,7 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
    assign axi_slave.aw_prot   = axi_ariane_req.aw.prot;
    assign axi_slave.aw_qos    = axi_ariane_req.aw.qos;
    assign axi_slave.aw_region = axi_ariane_req.aw.region;
+   assign axi_slave.aw_atop   = axi_ariane_req.aw.atop;
    assign axi_slave.aw_user   = 0;
     // W Channel
    assign axi_slave.w_data = axi_ariane_req.w.data;
@@ -241,23 +266,23 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
         );
         if(!axi_switch_vif.active) begin
            automatic logic [7:0][7:0] mem_row;
-           longint address;
+           longint address, load_address, last_load_address;
            longint len;
            byte buffer[];
-           void'(uvcl.get_arg_value("+PRELOAD=", binary));
+           void'(uvcl.get_arg_value("+elf_file=", binary));
 
            if (binary != "") begin
 
                void'(read_elf(binary));
-
                wait(clk_i);
 
+               last_load_address = 'hFFFFFFFF;
                // while there are more sections to process
                while (get_section(address, len)) begin
                    automatic int num_words0 = (len+7)/8;
                    `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len), UVM_LOW)
                    buffer = new [num_words0*8];
-                   void'(read_section(address, buffer));
+                   void'(read_section_sv(address, buffer));
                    // preload memories
                    // 64-bit
                    for (int i = 0; i < num_words0; i++) begin
@@ -265,7 +290,13 @@ module cva6_tb_wrapper import uvmt_cva6_pkg::*; #(
                        for (int j = 0; j < 8; j++) begin
                            mem_row[j] = buffer[i*8 + j];
                        end
-                       `MAIN_MEM((address[23:0] >> 3) + i) = mem_row;
+                       load_address = (address[23:0] >> 3) + i;
+                       if (load_address != last_load_address) begin
+                           `MAIN_MEM(load_address) = mem_row;
+                           last_load_address = load_address;
+                       end else begin
+                           `uvm_info( "Debug info", $sformatf(" Address: %x Already Loaded! ELF file might have less than 64 bits granularity on segments.", load_address), UVM_LOW)
+                       end
                    end
                end
            end
