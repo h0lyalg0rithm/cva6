@@ -19,6 +19,7 @@ module wt_dcache_missunit
   import wt_cache_pkg::*;
 #(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
+    parameter DCACHE_CL_IDX_WIDTH = 0,
     parameter type dcache_req_t = logic,
     parameter type dcache_rtrn_t = logic,
     parameter logic [CVA6Cfg.MEM_TID_WIDTH-1:0] AmoTxId = 1,  // TX id to be used for AMOs
@@ -60,7 +61,7 @@ module wt_dcache_missunit
     output logic wr_cl_vld_o,  // writes a full cacheline
     output logic wr_cl_nc_o,  // writes a full cacheline
     output logic [DCACHE_SET_ASSOC-1:0] wr_cl_we_o,  // writes a full cacheline
-    output logic [DCACHE_TAG_WIDTH-1:0] wr_cl_tag_o,
+    output logic [CVA6Cfg.DCACHE_TAG_WIDTH-1:0] wr_cl_tag_o,
     output logic [DCACHE_CL_IDX_WIDTH-1:0] wr_cl_idx_o,
     output logic [DCACHE_OFFSET_WIDTH-1:0] wr_cl_off_o,
     output logic [DCACHE_LINE_WIDTH-1:0] wr_cl_data_o,
@@ -413,7 +414,7 @@ module wt_dcache_missunit
                            (inv_vld)  ? mem_rtrn_i.inv.idx[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH] :
                                         mshr_q.paddr[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH];
 
-  assign wr_cl_tag_o = mshr_q.paddr[DCACHE_TAG_WIDTH+DCACHE_INDEX_WIDTH-1:DCACHE_INDEX_WIDTH];
+  assign wr_cl_tag_o = mshr_q.paddr[CVA6Cfg.DCACHE_TAG_WIDTH+DCACHE_INDEX_WIDTH-1:DCACHE_INDEX_WIDTH];
   assign wr_cl_off_o = mshr_q.paddr[DCACHE_OFFSET_WIDTH-1:0];
   assign wr_cl_data_o = mem_rtrn_i.data;
   assign wr_cl_user_o = mem_rtrn_i.user;
