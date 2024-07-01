@@ -64,8 +64,8 @@ module cva6_ptw_sv32
     input logic itlb_req_i,
 
     // from CSR file
-    input logic [riscv::PPNW-1:0] satp_ppn_i,  // ppn from satp
-    input logic                   mxr_i,
+    input logic [CVA6Cfg.PPNW-1:0] satp_ppn_i,  // ppn from satp
+    input logic                    mxr_i,
 
     // Performance counters
     output logic shared_tlb_miss_o,

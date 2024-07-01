@@ -119,13 +119,13 @@ module wt_dcache_missunit
 
   // MSHR for reads
   typedef struct packed {
-    logic [riscv::PLEN-1:0]              paddr;
-    logic [2:0]                          size;
+    logic [riscv::PLEN-1:0]                      paddr;
+    logic [2:0]                                  size;
     logic [CVA6Cfg.DCACHE_SET_ASSOC-1:0]         vld_bits;
-    logic [CVA6Cfg.MEM_TID_WIDTH-1:0]    id;
-    logic                                nc;
+    logic [CVA6Cfg.MEM_TID_WIDTH-1:0]            id;
+    logic                                        nc;
     logic [$clog2(CVA6Cfg.DCACHE_SET_ASSOC)-1:0] repl_way;
-    logic [$clog2(NumPorts)-1:0]         miss_port_idx;
+    logic [$clog2(NumPorts)-1:0]                 miss_port_idx;
   } mshr_t;
 
   mshr_t mshr_d, mshr_q;
@@ -266,7 +266,7 @@ module wt_dcache_missunit
       end else begin
         amo_data = amo_data_a;
       end
-      if (ariane_pkg::DATA_USER_EN) begin
+      if (CVA6Cfg.DATA_USER_EN) begin
         amo_user = amo_data;
       end else begin
         amo_user = '0;

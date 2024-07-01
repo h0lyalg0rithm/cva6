@@ -47,7 +47,7 @@ package config_pkg;
 
   typedef struct packed {
     // Is FPGA optimization of CV32A6
-    bit FPGA_EN;
+    bit                          FPGA_EN;
     // Number of commit ports
     int unsigned                 NrCommitPorts;
     // AXI address width
@@ -143,25 +143,29 @@ package config_pkg;
     // AXI burst in write
     bit                          AxiBurstWriteEn;
     // Instruction cache size (in bytes)
-    int unsigned IcacheByteSize;
+    int unsigned                 IcacheByteSize;
     // Instruction cache associativity (number of ways)
-    int unsigned IcacheSetAssoc;
+    int unsigned                 IcacheSetAssoc;
     // Instruction line width
-    int unsigned IcacheLineWidth;
+    int unsigned                 IcacheLineWidth;
     // Data cache size (in bytes)
-    int unsigned DcacheByteSize;
+    int unsigned                 DcacheByteSize;
     // Data cache associativity (number of ways)
-    int unsigned DcacheSetAssoc;
+    int unsigned                 DcacheSetAssoc;
     // Data line width
-    int unsigned DcacheLineWidth;
+    int unsigned                 DcacheLineWidth;
     // TODO
-    int unsigned FetchUserWidth;
+    int unsigned                 DataUserEn;
     // TODO
-    int unsigned FetchUserEn;
+    int unsigned                 FetchUserWidth;
+    // TODO
+    int unsigned                 FetchUserEn;
   } cva6_user_cfg_t;
 
   typedef struct packed {
-    bit FPGA_EN;
+    int unsigned XLEN_ALIGN_BYTES;
+
+    bit          FPGA_EN;
     /// Number of commit ports, i.e., maximum number of instructions that the
     /// core can retire per cycle. It can be beneficial to have more commit
     /// ports than issue ports, for the scoreboard to empty out in case one
@@ -250,6 +254,7 @@ package config_pkg;
 
     int unsigned DCACHE_MAX_TX;
 
+    int unsigned DATA_USER_EN;
     int unsigned FETCH_USER_WIDTH;
     int unsigned FETCH_USER_EN;
 
@@ -257,6 +262,9 @@ package config_pkg;
     int unsigned INSTR_PER_FETCH;
     int unsigned LOG2_INSTR_PER_FETCH;
 
+    int unsigned ModeW;
+    int unsigned ASIDW;
+    int unsigned PPNW;
     vm_mode_t MODE_SV;
     int unsigned SV;
   } cva6_cfg_t;

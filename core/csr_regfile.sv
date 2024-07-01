@@ -98,7 +98,7 @@ module csr_regfile
     // Make Executable Readable - EX_STAGE
     output logic mxr_o,
     // TO_BE_COMPLETED - EX_STAGE
-    output logic [riscv::PPNW-1:0] satp_ppn_o,
+    output logic [CVA6Cfg.PPNW-1:0] satp_ppn_o,
     // TO_BE_COMPLETED - EX_STAGE
     output logic [AsidWidth-1:0] asid_o,
     // external interrupt in - SUBSYSTEM
@@ -147,9 +147,9 @@ module csr_regfile
   localparam logic [63:0] SMODE_STATUS_READ_MASK = ariane_pkg::smode_status_read_mask(CVA6Cfg);
 
   typedef struct packed {
-    logic [riscv::ModeW-1:0] mode;
-    logic [riscv::ASIDW-1:0] asid;
-    logic [riscv::PPNW-1:0]  ppn;
+    logic [CVA6Cfg.ModeW-1:0] mode;
+    logic [CVA6Cfg.ASIDW-1:0] asid;
+    logic [CVA6Cfg.PPNW-1:0]  ppn;
   } satp_t;
 
   // internal signal to keep track of access exceptions
@@ -300,8 +300,7 @@ module csr_regfile
         riscv::CSR_TDATA3: read_access_exception = 1'b1;  // not implemented
         // supervisor registers
         riscv::CSR_SSTATUS: begin
-          if (CVA6Cfg.RVS)
-            csr_rdata = mstatus_extended & SMODE_STATUS_READ_MASK[riscv::XLEN-1:0];
+          if (CVA6Cfg.RVS) csr_rdata = mstatus_extended & SMODE_STATUS_READ_MASK[riscv::XLEN-1:0];
           else read_access_exception = 1'b1;
         end
         riscv::CSR_SIE:
@@ -831,7 +830,7 @@ module csr_regfile
             else begin
               satp      = satp_t'(csr_wdata);
               // only make ASID_LEN - 1 bit stick, that way software can figure out how many ASID bits are supported
-              satp.asid = satp.asid & {{(riscv::ASIDW - AsidWidth) {1'b0}}, {AsidWidth{1'b1}}};
+              satp.asid = satp.asid & {{(CVA6Cfg.ASIDW - AsidWidth) {1'b0}}, {AsidWidth{1'b1}}};
               // only update if we actually support this mode
               if (config_pkg::vm_mode_t'(satp.mode) == config_pkg::ModeOff ||
                                 config_pkg::vm_mode_t'(satp.mode) == CVA6Cfg.MODE_SV)
