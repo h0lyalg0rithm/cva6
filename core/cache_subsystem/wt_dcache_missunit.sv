@@ -44,7 +44,7 @@ module wt_dcache_missunit
     input logic [NumPorts-1:0] miss_nc_i,
     input logic [NumPorts-1:0] miss_we_i,
     input logic [NumPorts-1:0][riscv::XLEN-1:0] miss_wdata_i,
-    input logic [NumPorts-1:0][DCACHE_USER_WIDTH-1:0] miss_wuser_i,
+    input logic [NumPorts-1:0][CVA6Cfg.DCACHE_USER_WIDTH-1:0] miss_wuser_i,
     input logic [NumPorts-1:0][riscv::PLEN-1:0] miss_paddr_i,
     input logic [NumPorts-1:0][CVA6Cfg.DCACHE_SET_ASSOC-1:0] miss_vld_bits_i,
     input logic [NumPorts-1:0][2:0] miss_size_i,
@@ -65,7 +65,7 @@ module wt_dcache_missunit
     output logic [DCACHE_CL_IDX_WIDTH-1:0] wr_cl_idx_o,
     output logic [CVA6Cfg.DCACHE_OFFSET_WIDTH-1:0] wr_cl_off_o,
     output logic [CVA6Cfg.DCACHE_LINE_WIDTH-1:0] wr_cl_data_o,
-    output logic [DCACHE_USER_LINE_WIDTH-1:0] wr_cl_user_o,
+    output logic [CVA6Cfg.DCACHE_USER_LINE_WIDTH-1:0] wr_cl_user_o,
     output logic [CVA6Cfg.DCACHE_LINE_WIDTH/8-1:0] wr_cl_data_be_o,
     output logic [CVA6Cfg.DCACHE_SET_ASSOC-1:0] wr_vld_bits_o,
     // memory interface
@@ -142,7 +142,7 @@ module wt_dcache_missunit
   logic amo_req_d, amo_req_q;
   logic [63:0] amo_rtrn_mux;
   logic [riscv::XLEN-1:0] amo_data, amo_data_a, amo_data_b;
-  logic [riscv::XLEN-1:0] amo_user;  //DCACHE USER ? DATA_USER_WIDTH
+  logic [riscv::XLEN-1:0] amo_user;  //DCACHE USER ? CVA6Cfg.DCACHE_USER_WIDTH
   logic [riscv::PLEN-1:0] tmp_paddr;
   logic [$clog2(NumPorts)-1:0] miss_port_idx;
   logic [DCACHE_CL_IDX_WIDTH-1:0] cnt_d, cnt_q;

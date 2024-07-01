@@ -33,6 +33,16 @@ package config_pkg;
     HPDCACHE = 2
   } cache_type_t;
 
+  /// Data and Address length
+  typedef enum logic [3:0] {
+    ModeOff  = 0,
+    ModeSv32 = 1,
+    ModeSv39 = 8,
+    ModeSv48 = 9,
+    ModeSv57 = 10,
+    ModeSv64 = 11
+  } vm_mode_t;
+
   localparam NrMaxRules = 16;
 
   typedef struct packed {
@@ -144,6 +154,10 @@ package config_pkg;
     int unsigned DcacheSetAssoc;
     // Data line width
     int unsigned DcacheLineWidth;
+    // TODO
+    int unsigned FetchUserWidth;
+    // TODO
+    int unsigned FetchUserEn;
   } cva6_user_cfg_t;
 
   typedef struct packed {
@@ -223,15 +237,28 @@ package config_pkg;
     int unsigned ICACHE_INDEX_WIDTH;
     int unsigned ICACHE_TAG_WIDTH;
     int unsigned ICACHE_LINE_WIDTH;
+    int unsigned ICACHE_USER_LINE_WIDTH;
     int unsigned DCACHE_SET_ASSOC;
     int unsigned DCACHE_SET_ASSOC_WIDTH;
     int unsigned DCACHE_INDEX_WIDTH;
     int unsigned DCACHE_TAG_WIDTH;
     int unsigned DCACHE_LINE_WIDTH;
+    int unsigned DCACHE_USER_LINE_WIDTH;
+    int unsigned DCACHE_USER_WIDTH;
     int unsigned DCACHE_OFFSET_WIDTH;
     int unsigned DCACHE_NUM_WORDS;
 
     int unsigned DCACHE_MAX_TX;
+
+    int unsigned FETCH_USER_WIDTH;
+    int unsigned FETCH_USER_EN;
+
+    int unsigned FETCH_WIDTH;
+    int unsigned INSTR_PER_FETCH;
+    int unsigned LOG2_INSTR_PER_FETCH;
+
+    vm_mode_t MODE_SV;
+    int unsigned SV;
   } cva6_cfg_t;
 
   /// Empty configuration to sanity check proper parameter passing. Whenever

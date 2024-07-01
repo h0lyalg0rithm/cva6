@@ -113,19 +113,22 @@ package ariane_pkg;
 `else
   localparam bit ZERO_TVAL = 1'b0;
 `endif
+
   // read mask for SSTATUS over MMSTATUS
-  localparam logic [63:0] SMODE_STATUS_READ_MASK = riscv::SSTATUS_UIE
-                                                   | riscv::SSTATUS_SIE
-                                                   | riscv::SSTATUS_SPIE
-                                                   | riscv::SSTATUS_SPP
-                                                   | riscv::SSTATUS_FS
-                                                   | riscv::SSTATUS_XS
-                                                   | riscv::SSTATUS_SUM
-                                                   | riscv::SSTATUS_MXR
-                                                   | riscv::SSTATUS_UPIE
-                                                   | riscv::SSTATUS_SPIE
-                                                   | riscv::SSTATUS_UXL
-                                                   | riscv::SSTATUS_SD;
+  function automatic logic [63:0] smode_status_read_mask(config_pkg::cva6_cfg_t Cfg);
+    return riscv::SSTATUS_UIE
+    | riscv::SSTATUS_SIE
+    | riscv::SSTATUS_SPIE
+    | riscv::SSTATUS_SPP
+    | riscv::SSTATUS_FS
+    | riscv::SSTATUS_XS
+    | riscv::SSTATUS_SUM
+    | riscv::SSTATUS_MXR
+    | riscv::SSTATUS_UPIE
+    | riscv::SSTATUS_SPIE
+    | riscv::SSTATUS_UXL
+    | riscv::sstatus_sd(riscv::IS_XLEN64);
+  endfunction
 
   localparam logic [63:0] SMODE_STATUS_WRITE_MASK = riscv::SSTATUS_SIE
                                                     | riscv::SSTATUS_SPIE
@@ -137,12 +140,9 @@ package ariane_pkg;
   // AXI
   // ---------------
 
-  localparam FETCH_USER_WIDTH = cva6_config_pkg::CVA6ConfigFetchUserWidth;
-  localparam DATA_USER_WIDTH = cva6_config_pkg::CVA6ConfigDataUserWidth;
   localparam AXI_USER_EN = cva6_config_pkg::CVA6ConfigDataUserEn | cva6_config_pkg::CVA6ConfigFetchUserEn;
   localparam AXI_USER_WIDTH = cva6_config_pkg::CVA6ConfigDataUserWidth;
   localparam DATA_USER_EN = cva6_config_pkg::CVA6ConfigDataUserEn;
-  localparam FETCH_USER_EN = cva6_config_pkg::CVA6ConfigFetchUserEn;
 
   typedef enum logic {
     SINGLE_REQ,
@@ -155,10 +155,6 @@ package ariane_pkg;
 
   // leave as is (fails with >8 entries and wider fetch width)
   localparam int unsigned FETCH_FIFO_DEPTH = 4;
-  localparam int unsigned FETCH_WIDTH = 32;
-  // maximum instructions we can fetch on one request (we support compressed instructions)
-  localparam int unsigned INSTR_PER_FETCH = RVC == 1'b1 ? (FETCH_WIDTH / 16) : 1;
-  localparam int unsigned LOG2_INSTR_PER_FETCH = RVC == 1'b1 ? $clog2(INSTR_PER_FETCH) : 1;
 
   typedef enum logic [2:0] {
     NoCF,    // No control flow prediction
@@ -244,15 +240,9 @@ package ariane_pkg;
   localparam int unsigned DCACHE_INDEX_WIDTH = $clog2(`CONFIG_L1D_SIZE / DCACHE_SET_ASSOC);
   localparam int unsigned DCACHE_TAG_WIDTH = riscv::PLEN - DCACHE_INDEX_WIDTH;
   localparam int unsigned DCACHE_USER_LINE_WIDTH = (AXI_USER_WIDTH == 1) ? 4 : 128;  // in bit
-  localparam int unsigned DCACHE_USER_WIDTH = DATA_USER_WIDTH;
+  localparam int unsigned DCACHE_USER_WIDTH = cva6_config_pkg::CVA6ConfigDataUserWidth;
 
   localparam int unsigned MEM_TID_WIDTH = `L15_THREADID_WIDTH;
-`else
-  // I$
-  localparam int unsigned ICACHE_USER_LINE_WIDTH  = (AXI_USER_WIDTH == 1) ? 4 : cva6_config_pkg::CVA6ConfigIcacheLineWidth; // in bit
-  // D$
-  localparam int unsigned DCACHE_USER_LINE_WIDTH  = (AXI_USER_WIDTH == 1) ? 4 : cva6_config_pkg::CVA6ConfigDcacheLineWidth; // in bit
-  localparam int unsigned DCACHE_USER_WIDTH = DATA_USER_WIDTH;
 `endif
 
   localparam int unsigned DCACHE_TID_WIDTH = cva6_config_pkg::CVA6ConfigDcacheIdWidth;

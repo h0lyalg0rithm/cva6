@@ -68,8 +68,8 @@ module cva6
     localparam type icache_drsp_t = struct packed {
       logic                                    ready;  // icache is ready
       logic                                    valid;  // signals a valid read
-      logic [ariane_pkg::FETCH_WIDTH-1:0]      data;   // 2+ cycle out: tag
-      logic [ariane_pkg::FETCH_USER_WIDTH-1:0] user;   // User bits
+      logic [CVA6Cfg.FETCH_WIDTH-1:0]      data;   // 2+ cycle out: tag
+      logic [CVA6Cfg.FETCH_USER_WIDTH-1:0] user;   // User bits
       logic [riscv::VLEN-1:0]                  vaddr;  // virtual address out
       exception_t                              ex;     // we've encountered an exception
     },
@@ -163,7 +163,7 @@ module cva6
     localparam type icache_rtrn_t = struct packed {
       wt_cache_pkg::icache_in_t rtype;  // see definitions above
       logic [CVA6Cfg.ICACHE_LINE_WIDTH-1:0] data;  // full cache line width
-      logic [ariane_pkg::ICACHE_USER_LINE_WIDTH-1:0] user;  // user bits
+      logic [CVA6Cfg.ICACHE_USER_LINE_WIDTH-1:0] user;  // user bits
       struct packed {
         logic                                      vld;  // invalidate only affected way
         logic                                      all;  // invalidate all ways
@@ -178,7 +178,7 @@ module cva6
       logic [CVA6Cfg.DCACHE_INDEX_WIDTH-1:0] address_index;
       logic [CVA6Cfg.DCACHE_TAG_WIDTH-1:0]   address_tag;
       logic [riscv::XLEN-1:0]        data_wdata;
-      logic [DCACHE_USER_WIDTH-1:0]  data_wuser;
+      logic [CVA6Cfg.DCACHE_USER_WIDTH-1:0]  data_wuser;
       logic                          data_req;
       logic                          data_we;
       logic [(riscv::XLEN/8)-1:0]    data_be;
@@ -193,7 +193,7 @@ module cva6
       logic                         data_rvalid;
       logic [DCACHE_TID_WIDTH-1:0]  data_rid;
       logic [riscv::XLEN-1:0]       data_rdata;
-      logic [DCACHE_USER_WIDTH-1:0] data_ruser;
+      logic [CVA6Cfg.DCACHE_USER_WIDTH-1:0] data_ruser;
     },
 
     // AXI types
@@ -294,6 +294,24 @@ module cva6
     // noc response, can be AXI or OpenPiton - SUBSYSTEM
     input noc_resp_t noc_resp_i
 );
+
+  localparam type interrupts_t = struct packed {
+    logic [riscv::XLEN-1:0] S_SW;
+    logic [riscv::XLEN-1:0] M_SW;
+    logic [riscv::XLEN-1:0] S_TIMER;
+    logic [riscv::XLEN-1:0] M_TIMER;
+    logic [riscv::XLEN-1:0] S_EXT;
+    logic [riscv::XLEN-1:0] M_EXT;
+  };
+
+  localparam interrupts_t INTERRUPTS = '{
+      S_SW: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_S_SOFT),
+      M_SW: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_M_SOFT),
+      S_TIMER: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_S_TIMER),
+      M_TIMER: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_M_TIMER),
+      S_EXT: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_S_EXT),
+      M_EXT: (1 << (riscv::XLEN - 1)) | riscv::XLEN'(riscv::IRQ_M_EXT)
+  };
 
   // ------------------------------------------
   // Global Signals
@@ -573,7 +591,9 @@ module cva6
       .exception_t(exception_t),
       .fetch_entry_t(fetch_entry_t),
       .irq_ctrl_t(irq_ctrl_t),
-      .scoreboard_entry_t(scoreboard_entry_t)
+      .scoreboard_entry_t(scoreboard_entry_t),
+      .interrupts_t(interrupts_t),
+      .INTERRUPTS(INTERRUPTS)
   ) id_stage_i (
       .clk_i,
       .rst_ni,
@@ -1456,7 +1476,9 @@ module cva6
   instr_tracer #(
       .CVA6Cfg(CVA6Cfg),
       .bp_resolve_t(bp_resolve_t),
-      .scoreboard_entry_t(scoreboard_entry_t)
+      .scoreboard_entry_t(scoreboard_entry_t),
+      .interrupts_t(interrupts_t),
+      .INTERRUPTS(INTERRUPTS)
   ) instr_tracer_i (
       .tracer_if(tracer_if),
       .hart_id_i
