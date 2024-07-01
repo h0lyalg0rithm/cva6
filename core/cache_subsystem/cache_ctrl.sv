@@ -38,7 +38,7 @@ module cache_ctrl
     output dcache_req_o_t req_port_o,
     // SRAM interface
     output logic [DCACHE_SET_ASSOC-1:0] req_o,  // req is valid
-    output logic [DCACHE_INDEX_WIDTH-1:0] addr_o,  // address into cache array
+    output logic [CVA6Cfg.DCACHE_INDEX_WIDTH-1:0] addr_o,  // address into cache array
     input logic gnt_i,
     output cache_line_t data_o,
     output cl_be_t be_o,
@@ -79,7 +79,7 @@ module cache_ctrl
       state_d, state_q;
 
   typedef struct packed {
-    logic [DCACHE_INDEX_WIDTH-1:0] index;
+    logic [CVA6Cfg.DCACHE_INDEX_WIDTH-1:0] index;
     logic [CVA6Cfg.DCACHE_TAG_WIDTH-1:0]   tag;
     logic [DCACHE_TID_WIDTH-1:0]   id;
     logic [7:0]                    be;
@@ -113,7 +113,7 @@ module cache_ctrl
     automatic logic [$clog2(DCACHE_LINE_WIDTH)-1:0] cl_offset;
     // incoming cache-line -> this is needed as synthesis is not supporting +: indexing in a multi-dimensional array
     // cache-line offset -> multiple of 64
-    cl_offset = mem_req_q.index[DCACHE_BYTE_OFFSET-1:3] << 6;  // shift by 6 to the left
+    cl_offset = mem_req_q.index[CVA6Cfg.DCACHE_OFFSET_WIDTH-1:3] << 6;  // shift by 6 to the left
     // default assignments
     state_d = state_q;
     mem_req_d = mem_req_q;
@@ -256,7 +256,7 @@ module cache_ctrl
           // Check for cache-ability
           // -------------------------
           if (!config_pkg::is_inside_cacheable_regions(
-                  CVA6Cfg, {{{64 - riscv::PLEN} {1'b0}}, tag_o, {DCACHE_INDEX_WIDTH{1'b0}}}
+                  CVA6Cfg, {{{64 - riscv::PLEN} {1'b0}}, tag_o, {CVA6Cfg.DCACHE_INDEX_WIDTH{1'b0}}}
               )) begin
             mem_req_d.bypass = 1'b1;
             state_d = WAIT_REFILL_GNT;

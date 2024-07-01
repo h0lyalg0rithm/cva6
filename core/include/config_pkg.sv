@@ -134,6 +134,8 @@ package config_pkg;
     bit                          AxiBurstWriteEn;
     // Instruction cache associativity (number of ways)
     int unsigned IcacheSetAssoc;
+    // Data cache associativity (number of ways)
+    int unsigned DcacheSetAssoc;
   } cva6_user_cfg_t;
 
   typedef struct packed {
@@ -213,7 +215,10 @@ package config_pkg;
     int unsigned ICACHE_INDEX_WIDTH;
     int unsigned ICACHE_TAG_WIDTH;
     int unsigned DCACHE_SET_ASSOC_WIDTH;
+    int unsigned DCACHE_INDEX_WIDTH;
     int unsigned DCACHE_TAG_WIDTH;
+    int unsigned DCACHE_OFFSET_WIDTH;
+    int unsigned DCACHE_NUM_WORDS;
 
     int unsigned DCACHE_MAX_TX;
   } cva6_cfg_t;

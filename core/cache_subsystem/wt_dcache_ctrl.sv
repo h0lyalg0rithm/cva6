@@ -47,7 +47,7 @@ module wt_dcache_ctrl
     // cache memory interface
     output logic [CVA6Cfg.DCACHE_TAG_WIDTH-1:0] rd_tag_o,  // tag in - comes one cycle later
     output logic [DCACHE_CL_IDX_WIDTH-1:0] rd_idx_o,
-    output logic [DCACHE_OFFSET_WIDTH-1:0] rd_off_o,
+    output logic [CVA6Cfg.DCACHE_OFFSET_WIDTH-1:0] rd_off_o,
     output logic rd_req_o,  // read the word at offset off_i[:3] in all ways
     output logic rd_tag_only_o,  // set to zero here
     input logic rd_ack_i,
@@ -72,7 +72,7 @@ module wt_dcache_ctrl
 
   logic [CVA6Cfg.DCACHE_TAG_WIDTH-1:0] address_tag_d, address_tag_q;
   logic [DCACHE_CL_IDX_WIDTH-1:0] address_idx_d, address_idx_q;
-  logic [DCACHE_OFFSET_WIDTH-1:0] address_off_d, address_off_q;
+  logic [CVA6Cfg.DCACHE_OFFSET_WIDTH-1:0] address_off_d, address_off_q;
   logic [DCACHE_TID_WIDTH-1:0] id_d, id_q;
   logic [DCACHE_SET_ASSOC-1:0] vld_data_d, vld_data_q;
   logic save_tag, rd_req_d, rd_req_q, rd_ack_d, rd_ack_q;
@@ -85,8 +85,8 @@ module wt_dcache_ctrl
   // map address to tag/idx/offset and save
   assign vld_data_d = (rd_req_q) ? rd_vld_bits_i : vld_data_q;
   assign address_tag_d = (save_tag) ? req_port_i.address_tag : address_tag_q;
-  assign address_idx_d = (req_port_o.data_gnt) ? req_port_i.address_index[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH] : address_idx_q;
-  assign address_off_d = (req_port_o.data_gnt) ? req_port_i.address_index[DCACHE_OFFSET_WIDTH-1:0]                  : address_off_q;
+  assign address_idx_d = (req_port_o.data_gnt) ? req_port_i.address_index[CVA6Cfg.DCACHE_INDEX_WIDTH-1:CVA6Cfg.DCACHE_OFFSET_WIDTH] : address_idx_q;
+  assign address_off_d = (req_port_o.data_gnt) ? req_port_i.address_index[CVA6Cfg.DCACHE_OFFSET_WIDTH-1:0]                  : address_off_q;
   assign id_d = (req_port_o.data_gnt) ? req_port_i.data_id : id_q;
   assign data_size_d = (req_port_o.data_gnt) ? req_port_i.data_size : data_size_q;
   assign rd_tag_o = address_tag_d;
@@ -105,7 +105,7 @@ module wt_dcache_ctrl
   // noncacheable if request goes to I/O space, or if cache is disabled
   assign miss_nc_o = (~cache_en_i) | (~config_pkg::is_inside_cacheable_regions(
       CVA6Cfg,
-      {{{64-CVA6Cfg.DCACHE_TAG_WIDTH-DCACHE_INDEX_WIDTH}{1'b0}}, address_tag_q, {DCACHE_INDEX_WIDTH{1'b0}}}
+      {{{64-CVA6Cfg.DCACHE_TAG_WIDTH-CVA6Cfg.DCACHE_INDEX_WIDTH}{1'b0}}, address_tag_q, {CVA6Cfg.DCACHE_INDEX_WIDTH{1'b0}}}
   ));
 
 
@@ -292,7 +292,7 @@ module wt_dcache_ctrl
 
   initial begin
     // assert wrong parameterizations
-    assert (DCACHE_INDEX_WIDTH <= 12)
+    assert (CVA6Cfg.DCACHE_INDEX_WIDTH <= 12)
     else
       $fatal(1, "[l1 dcache ctrl] cache index width can be maximum 12bit since VM uses 4kB pages");
   end
