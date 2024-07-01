@@ -25,7 +25,7 @@ module amo_buffer #(
     output logic ready_o,  // AMO unit is ready
     input ariane_pkg::amo_t amo_op_i,  // AMO Operation
     input  logic [riscv::PLEN-1:0]      paddr_i,            // physical address of store which needs to be placed in the queue
-    input riscv::xlen_t data_i,  // data which is placed in the queue
+    input logic [riscv::XLEN-1:0] data_i,  // data which is placed in the queue
     input logic [1:0] data_size_i,  // type of request we are making (e.g.: bytes to write)
     // D$
     output ariane_pkg::amo_req_t amo_req_o,  // request to cache subsytem
@@ -40,7 +40,7 @@ module amo_buffer #(
   typedef struct packed {
     ariane_pkg::amo_t       op;
     logic [riscv::PLEN-1:0] paddr;
-    riscv::xlen_t           data;
+    logic [riscv::XLEN-1:0] data;
     logic [1:0]             size;
   } amo_op_t;
 
@@ -63,8 +63,9 @@ module amo_buffer #(
   assign flush_amo_buffer = flush_i & !amo_valid_commit_i;
 
   fifo_v3 #(
-      .DEPTH(1),
-      .dtype(amo_op_t)
+      .DEPTH  (1),
+      .dtype  (amo_op_t),
+      .FPGA_EN(CVA6Cfg.FPGA_EN)
   ) i_amo_fifo (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),

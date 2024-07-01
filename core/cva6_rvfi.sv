@@ -15,6 +15,8 @@ module cva6_rvfi
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
     parameter type rvfi_instr_t = logic,
     parameter type rvfi_csr_t = logic,
+    parameter type rvfi_probes_instr_t = logic,
+    parameter type rvfi_probes_csr_t = logic,
     parameter type rvfi_probes_t = logic
 
 ) (
@@ -37,7 +39,7 @@ module cva6_rvfi
   localparam bit RVD = (riscv::IS_XLEN64 ? 1 : 0) & CVA6Cfg.FpuEn;
   localparam bit FpPresent = RVF | RVD | CVA6Cfg.XF16 | CVA6Cfg.XF16ALT | CVA6Cfg.XF8;
 
-  localparam riscv::xlen_t IsaCode = (riscv::XLEN'(CVA6Cfg.RVA) <<  0)                // A - Atomic Instructions extension
+  localparam logic [riscv::XLEN-1:0] IsaCode = (riscv::XLEN'(CVA6Cfg.RVA) <<  0)                // A - Atomic Instructions extension
   | (riscv::XLEN'(CVA6Cfg.RVB) << 1)  // C - Bitmanip extension
   | (riscv::XLEN'(CVA6Cfg.RVC) << 2)  // C - Compressed extension
   | (riscv::XLEN'(CVA6Cfg.RVD) << 3)  // D - Double precision floating-point extension
@@ -51,32 +53,32 @@ module cva6_rvfi
   | (riscv::XLEN'(CVA6Cfg.NSX) << 23)  // X - Non-standard extensions present
   | ((riscv::XLEN == 64 ? 2 : 1) << riscv::XLEN - 2);  // MXL
 
-  localparam riscv::xlen_t hart_id_i = '0;
+  localparam logic [riscv::XLEN-1:0] hart_id_i = '0;
   logic flush;
   logic issue_instr_ack;
   logic fetch_entry_valid;
   logic [31:0] instruction;
   logic is_compressed;
 
-  logic [TRANS_ID_BITS-1:0] issue_pointer;
-  logic [CVA6Cfg.NrCommitPorts-1:0][TRANS_ID_BITS-1:0] commit_pointer;
+  logic [CVA6Cfg.TRANS_ID_BITS-1:0] issue_pointer;
+  logic [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.TRANS_ID_BITS-1:0] commit_pointer;
 
   logic flush_unissued_instr;
   logic decoded_instr_valid;
   logic decoded_instr_ack;
 
-  riscv::xlen_t rs1_forwarding;
-  riscv::xlen_t rs2_forwarding;
+  logic [riscv::XLEN-1:0] rs1_forwarding;
+  logic [riscv::XLEN-1:0] rs2_forwarding;
 
   logic [CVA6Cfg.NrCommitPorts-1:0][riscv::VLEN-1:0] commit_instr_pc;
-  fu_op [CVA6Cfg.NrCommitPorts-1:0][TRANS_ID_BITS-1:0] commit_instr_op;
+  fu_op [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.TRANS_ID_BITS-1:0] commit_instr_op;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs1;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs2;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rd;
-  riscv::xlen_t [CVA6Cfg.NrCommitPorts-1:0] commit_instr_result;
+  logic [CVA6Cfg.NrCommitPorts-1:0][riscv::XLEN-1:0] commit_instr_result;
   logic [CVA6Cfg.NrCommitPorts-1:0][riscv::VLEN-1:0] commit_instr_valid;
 
-  riscv::xlen_t ex_commit_cause;
+  logic [riscv::XLEN-1:0] ex_commit_cause;
   logic ex_commit_valid;
 
   riscv::priv_lvl_t priv_lvl;
@@ -84,7 +86,7 @@ module cva6_rvfi
   logic [riscv::VLEN-1:0] lsu_ctrl_vaddr;
   fu_t lsu_ctrl_fu;
   logic [(riscv::XLEN/8)-1:0] lsu_ctrl_be;
-  logic [TRANS_ID_BITS-1:0] lsu_ctrl_trans_id;
+  logic [CVA6Cfg.TRANS_ID_BITS-1:0] lsu_ctrl_trans_id;
 
   logic [((CVA6Cfg.CvxifEn || CVA6Cfg.RVV) ? 5 : 4)-1:0][riscv::XLEN-1:0] wbdata;
   logic [CVA6Cfg.NrCommitPorts-1:0] commit_ack;
@@ -95,7 +97,7 @@ module cva6_rvfi
   logic [riscv::VLEN-1:0] lsu_addr;
   logic [(riscv::XLEN/8)-1:0] lsu_rmask;
   logic [(riscv::XLEN/8)-1:0] lsu_wmask;
-  logic [TRANS_ID_BITS-1:0] lsu_addr_trans_id;
+  logic [CVA6Cfg.TRANS_ID_BITS-1:0] lsu_addr_trans_id;
 
   riscv::pmpcfg_t [15:0] pmpcfg_q, pmpcfg_d;
 
@@ -191,15 +193,15 @@ module cva6_rvfi
 
   // this is the FIFO struct of the issue queue
   typedef struct packed {
-    riscv::xlen_t rs1_rdata;
-    riscv::xlen_t rs2_rdata;
+    logic [riscv::XLEN-1:0] rs1_rdata;
+    logic [riscv::XLEN-1:0] rs2_rdata;
     logic [riscv::VLEN-1:0] lsu_addr;
     logic [(riscv::XLEN/8)-1:0] lsu_rmask;
     logic [(riscv::XLEN/8)-1:0] lsu_wmask;
-    riscv::xlen_t lsu_wdata;
+    logic [riscv::XLEN-1:0] lsu_wdata;
     logic [31:0] instr;
   } sb_mem_t;
-  sb_mem_t [NR_SB_ENTRIES-1:0] mem_q, mem_n;
+  sb_mem_t [CVA6Cfg.NR_SB_ENTRIES-1:0] mem_q, mem_n;
 
   always_comb begin : issue_fifo
     mem_n = mem_q;

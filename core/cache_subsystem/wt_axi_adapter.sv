@@ -97,9 +97,9 @@ module wt_axi_adapter
   // AMO generates r beat
   logic amo_gen_r_d, amo_gen_r_q;
 
-  logic [wt_cache_pkg::CACHE_ID_WIDTH-1:0] icache_rtrn_tid_d, icache_rtrn_tid_q;
-  logic [wt_cache_pkg::CACHE_ID_WIDTH-1:0] dcache_rtrn_tid_d, dcache_rtrn_tid_q;
-  logic [wt_cache_pkg::CACHE_ID_WIDTH-1:0] dcache_rtrn_rd_tid, dcache_rtrn_wr_tid;
+  logic [CVA6Cfg.MEM_TID_WIDTH-1:0] icache_rtrn_tid_d, icache_rtrn_tid_q;
+  logic [CVA6Cfg.MEM_TID_WIDTH-1:0] dcache_rtrn_tid_d, dcache_rtrn_tid_q;
+  logic [CVA6Cfg.MEM_TID_WIDTH-1:0] dcache_rtrn_rd_tid, dcache_rtrn_wr_tid;
   logic dcache_rd_pop, dcache_wr_pop;
   logic icache_rd_full, icache_rd_empty;
   logic dcache_rd_full, dcache_rd_empty;
@@ -311,8 +311,9 @@ module wt_axi_adapter
   end
 
   fifo_v3 #(
-      .dtype(icache_req_t),
-      .DEPTH(ReqFifoDepth)
+      .dtype  (icache_req_t),
+      .DEPTH  (ReqFifoDepth),
+      .FPGA_EN(CVA6Cfg.FPGA_EN)
   ) i_icache_data_fifo (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
@@ -328,8 +329,9 @@ module wt_axi_adapter
   );
 
   fifo_v3 #(
-      .dtype(dcache_req_t),
-      .DEPTH(ReqFifoDepth)
+      .dtype  (dcache_req_t),
+      .DEPTH  (ReqFifoDepth),
+      .FPGA_EN(CVA6Cfg.FPGA_EN)
   ) i_dcache_data_fifo (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
@@ -352,8 +354,9 @@ module wt_axi_adapter
   logic icache_rtrn_vld_d, icache_rtrn_vld_q, dcache_rtrn_vld_d, dcache_rtrn_vld_q;
 
   fifo_v3 #(
-      .DATA_WIDTH(wt_cache_pkg::CACHE_ID_WIDTH),
-      .DEPTH     (MetaFifoDepth)
+      .DATA_WIDTH(CVA6Cfg.MEM_TID_WIDTH),
+      .DEPTH     (MetaFifoDepth),
+      .FPGA_EN   (CVA6Cfg.FPGA_EN)
   ) i_rd_icache_id (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
@@ -369,8 +372,9 @@ module wt_axi_adapter
   );
 
   fifo_v3 #(
-      .DATA_WIDTH(wt_cache_pkg::CACHE_ID_WIDTH),
-      .DEPTH     (MetaFifoDepth)
+      .DATA_WIDTH(CVA6Cfg.MEM_TID_WIDTH),
+      .DEPTH     (MetaFifoDepth),
+      .FPGA_EN   (CVA6Cfg.FPGA_EN)
   ) i_rd_dcache_id (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
@@ -386,8 +390,9 @@ module wt_axi_adapter
   );
 
   fifo_v3 #(
-      .DATA_WIDTH(wt_cache_pkg::CACHE_ID_WIDTH),
-      .DEPTH     (MetaFifoDepth)
+      .DATA_WIDTH(CVA6Cfg.MEM_TID_WIDTH),
+      .DEPTH     (MetaFifoDepth),
+      .FPGA_EN   (CVA6Cfg.FPGA_EN)
   ) i_wr_dcache_id (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
@@ -417,7 +422,8 @@ module wt_axi_adapter
   fifo_v3 #(
       .DATA_WIDTH  (CVA6Cfg.AxiIdWidth + 1),
       .DEPTH       (MetaFifoDepth),
-      .FALL_THROUGH(1'b1)
+      .FALL_THROUGH(1'b1),
+      .FPGA_EN     (CVA6Cfg.FPGA_EN)
   ) i_b_fifo (
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),

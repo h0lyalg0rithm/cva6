@@ -23,6 +23,7 @@ package build_config_pkg;
 
     config_pkg::cva6_cfg_t cfg;
 
+    cfg.FPGA_EN = CVA6Cfg.FPGA_EN;
     cfg.NrCommitPorts = CVA6Cfg.NrCommitPorts;
     cfg.AxiAddrWidth = CVA6Cfg.AxiAddrWidth;
     cfg.AxiDataWidth = CVA6Cfg.AxiDataWidth;
@@ -39,9 +40,12 @@ package build_config_pkg;
     cfg.RVV = CVA6Cfg.RVV;
     cfg.RVC = CVA6Cfg.RVC;
     cfg.RVZCB = CVA6Cfg.RVZCB;
+    cfg.RVZCMP = CVA6Cfg.RVZCMP;
     cfg.XFVec = CVA6Cfg.XFVec;
     cfg.CvxifEn = CVA6Cfg.CvxifEn;
     cfg.ZiCondExtEn = CVA6Cfg.ZiCondExtEn;
+    cfg.NR_SB_ENTRIES = CVA6Cfg.NrScoreboardEntries;
+    cfg.TRANS_ID_BITS = $clog2(CVA6Cfg.NrScoreboardEntries);
 
     cfg.RVF = bit'(RVF);
     cfg.RVD = bit'(RVD);

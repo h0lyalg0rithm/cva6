@@ -36,6 +36,8 @@ package config_pkg;
   localparam NrMaxRules = 16;
 
   typedef struct packed {
+    // Is FPGA optimization of CV32A6
+    bit FPGA_EN;
     // Number of commit ports
     int unsigned                 NrCommitPorts;
     // AXI address width
@@ -68,6 +70,8 @@ package config_pkg;
     bit                          RVC;
     // Zcb RISC-V extension
     bit                          RVZCB;
+    // Zcmp RISC-V extension
+    bit                          RVZCMP;
     // Non standard Vector Floating Point
     bit                          XFVec;
     // CV-X-IF coprocessor interface is supported
@@ -78,6 +82,8 @@ package config_pkg;
     bit                          RVS;
     // User mode
     bit                          RVU;
+    // Scoreboard length
+    int unsigned                 NrScoreboardEntries;
     // Address to jump when halt request
     logic [63:0]                 HaltAddress;
     // Address to jump when exception 
@@ -129,6 +135,7 @@ package config_pkg;
   } cva6_user_cfg_t;
 
   typedef struct packed {
+    bit FPGA_EN;
     /// Number of commit ports, i.e., maximum number of instructions that the
     /// core can retire per cycle. It can be beneficial to have more commit
     /// ports than issue ports, for the scoreboard to empty out in case one
@@ -150,10 +157,14 @@ package config_pkg;
     bit          RVV;
     bit          RVC;
     bit          RVZCB;
+    bit          RVZCMP;
     bit          XFVec;
     bit          CvxifEn;
     bit          ZiCondExtEn;
-    // Calculated
+
+    int unsigned NR_SB_ENTRIES;
+    int unsigned TRANS_ID_BITS;
+
     bit          RVF;
     bit          RVD;
     bit          FpPresent;

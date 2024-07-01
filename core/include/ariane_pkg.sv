@@ -29,11 +29,6 @@
 package ariane_pkg;
 
   // TODO: Slowly move those parameters to the new system.
-  localparam NR_SB_ENTRIES = cva6_config_pkg::CVA6ConfigNrScoreboardEntries; // number of scoreboard entries
-  localparam TRANS_ID_BITS = $clog2(
-      NR_SB_ENTRIES
-  );  // depending on the number of scoreboard entries we need that many bits
-      // to uniquely identify the entry in the scoreboard
   localparam ASID_WIDTH = (riscv::XLEN == 64) ? 16 : 1;
   localparam BITS_SATURATION_COUNTER = 2;
 
@@ -51,8 +46,6 @@ package ariane_pkg;
   // allocate more space for the commit buffer to be on the save side, this needs to be a power of two
   localparam logic [2:0] DEPTH_COMMIT = 'd4;
 
-  localparam bit FPGA_EN = cva6_config_pkg::CVA6ConfigFPGAEn;  // Is FPGA optimization of CV32A6
-
   localparam bit RVC = cva6_config_pkg::CVA6ConfigCExtEn;  // Is C extension configuration
 
   // Transprecision float unit
@@ -65,8 +58,8 @@ package ariane_pkg;
   localparam int unsigned LAT_NONCOMP = 'd1;
   localparam int unsigned LAT_CONV = 'd2;
 
-  localparam riscv::xlen_t OPENHWGROUP_MVENDORID = {{riscv::XLEN - 32{1'b0}}, 32'h0602};
-  localparam riscv::xlen_t ARIANE_MARCHID = {{riscv::XLEN - 32{1'b0}}, 32'd3};
+  localparam logic [31:0] OPENHWGROUP_MVENDORID = 32'h0602;
+  localparam logic [31:0] ARIANE_MARCHID = 32'd3;
 
   // 32 registers
   localparam REG_ADDR_SIZE = 5;
@@ -274,8 +267,6 @@ package ariane_pkg;
   localparam int unsigned DCACHE_LINE_WIDTH = cva6_config_pkg::CVA6ConfigDcacheLineWidth;  // in bit
   localparam int unsigned DCACHE_USER_LINE_WIDTH  = (AXI_USER_WIDTH == 1) ? 4 : cva6_config_pkg::CVA6ConfigDcacheLineWidth; // in bit
   localparam int unsigned DCACHE_USER_WIDTH = DATA_USER_WIDTH;
-
-  localparam int unsigned MEM_TID_WIDTH = cva6_config_pkg::CVA6ConfigMemTidWidth;
 `endif
 
   localparam int unsigned DCACHE_TID_WIDTH = cva6_config_pkg::CVA6ConfigDcacheIdWidth;
@@ -646,203 +637,19 @@ package ariane_pkg;
     logic [63:0] result;  // sign-extended, result
   } amo_resp_t;
 
-  // RVFI instr 
-  typedef struct packed {
-    logic [TRANS_ID_BITS-1:0] issue_pointer;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][TRANS_ID_BITS-1:0] commit_pointer;
-    logic flush_unissued_instr;
-    logic decoded_instr_valid;
-    logic decoded_instr_ack;
-    logic flush;
-    logic issue_instr_ack;
-    logic fetch_entry_valid;
-    logic [31:0] instruction;
-    logic is_compressed;
-    riscv::xlen_t rs1_forwarding;
-    riscv::xlen_t rs2_forwarding;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][riscv::VLEN-1:0] commit_instr_pc;
-    fu_op [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][TRANS_ID_BITS-1:0] commit_instr_op;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs1;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs2;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rd;
-    riscv::xlen_t [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0] commit_instr_result;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][riscv::VLEN-1:0] commit_instr_valid;
-    riscv::xlen_t ex_commit_cause;
-    logic ex_commit_valid;
-    riscv::priv_lvl_t priv_lvl;
-    logic [riscv::VLEN-1:0] lsu_ctrl_vaddr;
-    fu_t lsu_ctrl_fu;
-    logic [(riscv::XLEN/8)-1:0] lsu_ctrl_be;
-    logic [TRANS_ID_BITS-1:0] lsu_ctrl_trans_id;
-    logic [((cva6_config_pkg::CVA6ConfigCvxifEn || cva6_config_pkg::CVA6ConfigVExtEn) ? 5 : 4)-1:0][riscv::XLEN-1:0] wbdata;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0] commit_ack;
-    logic [riscv::PLEN-1:0] mem_paddr;
-    logic debug_mode;
-    logic [cva6_config_pkg::CVA6ConfigNrCommitPorts-1:0][riscv::XLEN-1:0] wdata;
-  } rvfi_probes_instr_t;
-
-  // RVFI CSR element
-  typedef struct packed {
-    riscv::xlen_t rdata;
-    riscv::xlen_t rmask;
-    riscv::xlen_t wdata;
-    riscv::xlen_t wmask;
-  } rvfi_csr_elmt_t;
-
-  // RVFI CSR structure
-  typedef struct packed {
-    riscv::fcsr_t fcsr_q;
-    riscv::dcsr_t dcsr_q;
-    riscv::xlen_t dpc_q;
-    riscv::xlen_t dscratch0_q;
-    riscv::xlen_t dscratch1_q;
-    riscv::xlen_t mie_q;
-    riscv::xlen_t mip_q;
-    riscv::xlen_t stvec_q;
-    riscv::xlen_t scounteren_q;
-    riscv::xlen_t sscratch_q;
-    riscv::xlen_t sepc_q;
-    riscv::xlen_t scause_q;
-    riscv::xlen_t stval_q;
-    riscv::xlen_t satp_q;
-    riscv::xlen_t mstatus_extended;
-    riscv::xlen_t medeleg_q;
-    riscv::xlen_t mideleg_q;
-    riscv::xlen_t mtvec_q;
-    riscv::xlen_t mcounteren_q;
-    riscv::xlen_t mscratch_q;
-    riscv::xlen_t mepc_q;
-    riscv::xlen_t mcause_q;
-    riscv::xlen_t mtval_q;
-    logic fiom_q;
-    logic [MHPMCounterNum+3-1:0] mcountinhibit_q;
-    logic [63:0] cycle_q;
-    logic [63:0] instret_q;
-    riscv::xlen_t dcache_q;
-    riscv::xlen_t icache_q;
-    riscv::xlen_t acc_cons_q;
-    riscv::pmpcfg_t [15:0] pmpcfg_q;
-    logic [15:0][riscv::PLEN-3:0] pmpaddr_q;
-  } rvfi_probes_csr_t;
-
-  // RVFI CSR structure
-  typedef struct packed {
-    rvfi_csr_elmt_t fflags;
-    rvfi_csr_elmt_t frm;
-    rvfi_csr_elmt_t fcsr;
-    rvfi_csr_elmt_t ftran;
-    rvfi_csr_elmt_t dcsr;
-    rvfi_csr_elmt_t dpc;
-    rvfi_csr_elmt_t dscratch0;
-    rvfi_csr_elmt_t dscratch1;
-    rvfi_csr_elmt_t sstatus;
-    rvfi_csr_elmt_t sie;
-    rvfi_csr_elmt_t sip;
-    rvfi_csr_elmt_t stvec;
-    rvfi_csr_elmt_t scounteren;
-    rvfi_csr_elmt_t sscratch;
-    rvfi_csr_elmt_t sepc;
-    rvfi_csr_elmt_t scause;
-    rvfi_csr_elmt_t stval;
-    rvfi_csr_elmt_t satp;
-    rvfi_csr_elmt_t mstatus;
-    rvfi_csr_elmt_t mstatush;
-    rvfi_csr_elmt_t misa;
-    rvfi_csr_elmt_t medeleg;
-    rvfi_csr_elmt_t mideleg;
-    rvfi_csr_elmt_t mie;
-    rvfi_csr_elmt_t mtvec;
-    rvfi_csr_elmt_t mcounteren;
-    rvfi_csr_elmt_t mscratch;
-    rvfi_csr_elmt_t mepc;
-    rvfi_csr_elmt_t mcause;
-    rvfi_csr_elmt_t mtval;
-    rvfi_csr_elmt_t mip;
-    rvfi_csr_elmt_t menvcfg;
-    rvfi_csr_elmt_t menvcfgh;
-    rvfi_csr_elmt_t mvendorid;
-    rvfi_csr_elmt_t marchid;
-    rvfi_csr_elmt_t mhartid;
-    rvfi_csr_elmt_t mcountinhibit;
-    rvfi_csr_elmt_t mcycle;
-    rvfi_csr_elmt_t mcycleh;
-    rvfi_csr_elmt_t minstret;
-    rvfi_csr_elmt_t minstreth;
-    rvfi_csr_elmt_t cycle;
-    rvfi_csr_elmt_t cycleh;
-    rvfi_csr_elmt_t instret;
-    rvfi_csr_elmt_t instreth;
-    rvfi_csr_elmt_t dcache;
-    rvfi_csr_elmt_t icache;
-    rvfi_csr_elmt_t acc_cons;
-    rvfi_csr_elmt_t pmpcfg0;
-    rvfi_csr_elmt_t pmpcfg1;
-    rvfi_csr_elmt_t pmpcfg2;
-    rvfi_csr_elmt_t pmpcfg3;
-    rvfi_csr_elmt_t [15:0] pmpaddr;
-  } rvfi_csr_t;
-
   localparam RVFI = cva6_config_pkg::CVA6ConfigRvfiTrace;
 
   // ----------------------
   // Arithmetic Functions
   // ----------------------
-  function automatic riscv::xlen_t sext32(logic [31:0] operand);
+  function automatic logic [riscv::XLEN-1:0] sext32(config_pkg::cva6_cfg_t Cfg,
+                                                    logic [31:0] operand);
     return {{riscv::XLEN - 32{operand[31]}}, operand[31:0]};
-  endfunction
-
-  // ----------------------
-  // Immediate functions
-  // ----------------------
-  function automatic logic [riscv::VLEN-1:0] uj_imm(logic [31:0] instruction_i);
-    return {
-      {44 + riscv::VLEN - 64{instruction_i[31]}},
-      instruction_i[19:12],
-      instruction_i[20],
-      instruction_i[30:21],
-      1'b0
-    };
-  endfunction
-
-  function automatic logic [riscv::VLEN-1:0] i_imm(logic [31:0] instruction_i);
-    return {{52 + riscv::VLEN - 64{instruction_i[31]}}, instruction_i[31:20]};
-  endfunction
-
-  function automatic logic [riscv::VLEN-1:0] sb_imm(logic [31:0] instruction_i);
-    return {
-      {51 + riscv::VLEN - 64{instruction_i[31]}},
-      instruction_i[31],
-      instruction_i[7],
-      instruction_i[30:25],
-      instruction_i[11:8],
-      1'b0
-    };
   endfunction
 
   // ----------------------
   // LSU Functions
   // ----------------------
-  // align data to address e.g.: shift data to be naturally 64
-  function automatic riscv::xlen_t data_align(logic [2:0] addr, logic [63:0] data);
-    // Set addr[2] to 1'b0 when 32bits
-    logic [ 2:0] addr_tmp = {(addr[2] && riscv::IS_XLEN64), addr[1:0]};
-    logic [63:0] data_tmp = {64{1'b0}};
-    case (addr_tmp)
-      3'b000: data_tmp[riscv::XLEN-1:0] = {data[riscv::XLEN-1:0]};
-      3'b001:
-      data_tmp[riscv::XLEN-1:0] = {data[riscv::XLEN-9:0], data[riscv::XLEN-1:riscv::XLEN-8]};
-      3'b010:
-      data_tmp[riscv::XLEN-1:0] = {data[riscv::XLEN-17:0], data[riscv::XLEN-1:riscv::XLEN-16]};
-      3'b011:
-      data_tmp[riscv::XLEN-1:0] = {data[riscv::XLEN-25:0], data[riscv::XLEN-1:riscv::XLEN-24]};
-      3'b100: data_tmp = {data[31:0], data[63:32]};
-      3'b101: data_tmp = {data[23:0], data[63:24]};
-      3'b110: data_tmp = {data[15:0], data[63:16]};
-      3'b111: data_tmp = {data[7:0], data[63:8]};
-    endcase
-    return data_tmp[riscv::XLEN-1:0];
-  endfunction
-
   // generate byte enable mask
   function automatic logic [7:0] be_gen(logic [2:0] addr, logic [1:0] size);
     case (size)
