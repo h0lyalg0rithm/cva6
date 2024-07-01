@@ -21,11 +21,14 @@ import uvm_pkg::*;
 `include "rvfi_types.svh"
 
 `define MAIN_MEM(P) dut.i_sram.gen_cut[0].i_tc_sram_wrapper.i_tc_sram.init_val[(``P``)]
-// `define USER_MEM(P) dut.i_sram.gen_cut[0].gen_mem.gen_mem_user.i_tc_sram_wrapper_user.i_tc_sram.init_val[(``P``)]
+`define USER_MEM(P) dut.i_sram.gen_cut[0].gen_mem_user.i_tc_sram_wrapper_user.i_tc_sram.init_val[(``P``)]
 
-import "DPI-C" function read_elf(input string filename);
+`ifndef READ_ELF_T
+`define READ_ELF_T
+import "DPI-C" function void read_elf(input string filename);
 import "DPI-C" function byte get_section(output longint address, output longint len);
 import "DPI-C" context function void read_section_sv(input longint address, inout byte buffer[]);
+`endif
 
 module ariane_tb;
 
@@ -129,7 +132,7 @@ module ariane_tb;
         if (binary != "") begin
             `uvm_info( "Core Test", $sformatf("Preloading ELF: %s", binary), UVM_LOW)
 
-            void'(read_elf(binary));
+            read_elf(binary);
             // wait with preloading, otherwise randomization will overwrite the existing value
             wait(clk_i);
 
@@ -137,9 +140,9 @@ module ariane_tb;
             // while there are more sections to process
             while (get_section(address, len)) begin
                 automatic int num_words = (len+7)/8;
-                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len), UVM_LOW)
+                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len), UVM_NONE)
                 buffer = new [num_words*8];
-                void'(read_section_sv(address, buffer));
+                read_section_sv(address, buffer);
                 // preload memories
                 // 64-bit
                 for (int i = 0; i < num_words; i++) begin
@@ -149,10 +152,14 @@ module ariane_tb;
                     end
                     load_address = (address[23:0] >> 3) + i;
                     if (load_address != last_load_address) begin
-                        `MAIN_MEM(load_address) = mem_row;
+                        if (address[31:0] < 'h84000000) begin
+                            `MAIN_MEM(load_address) = mem_row;
+                        end else begin
+                             `USER_MEM(load_address) = mem_row;
+                        end
                         last_load_address = load_address;
                     end else begin
-                        `uvm_info( "Debug info", $sformatf(" Address: %x Already Loaded! ELF file might have less than 64 bits granularity on segments.", load_address), UVM_LOW)
+                        `uvm_info( "Debug info", $sformatf(" Address: %x Already Loaded! ELF file might have less than 64 bits granularity on segments.", load_address), UVM_NONE)
                     end
 
                 end

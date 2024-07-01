@@ -147,7 +147,7 @@ module cva6_icache
   // latch this in case we have to stall later on
   // make sure this is 32bit aligned
   assign vaddr_d = (dreq_o.ready & dreq_i.req) ? dreq_i.vaddr : vaddr_q;
-  assign areq_o.fetch_vaddr = {vaddr_q[CVA6Cfg.VLEN-1:2], 2'b0};
+  assign areq_o.fetch_vaddr = (vaddr_q >> CVA6Cfg.FETCH_ALIGN_BITS) << CVA6Cfg.FETCH_ALIGN_BITS;
 
   // split virtual address into index and offset to address cache arrays
   assign cl_index = vaddr_d[CVA6Cfg.ICACHE_INDEX_WIDTH-1:ICACHE_OFFSET_WIDTH];
@@ -155,7 +155,7 @@ module cva6_icache
 
   if (CVA6Cfg.NOCType == config_pkg::NOC_TYPE_AXI4_ATOP) begin : gen_axi_offset
     // if we generate a noncacheable access, the word will be at offset 0 or 4 in the cl coming from memory
-    assign cl_offset_d = ( dreq_o.ready & dreq_i.req)      ? {dreq_i.vaddr[ICACHE_OFFSET_WIDTH-1:2], 2'b0} :
+    assign cl_offset_d = ( dreq_o.ready & dreq_i.req)      ? (dreq_i.vaddr >> CVA6Cfg.FETCH_ALIGN_BITS) << CVA6Cfg.FETCH_ALIGN_BITS :
                          ( paddr_is_nc  & mem_data_req_o ) ? {{ICACHE_OFFSET_WIDTH-1{1'b0}}, cl_offset_q[2]}<<2 : // needed since we transfer 32bit over a 64bit AXI bus in this case
         cl_offset_q;
     // request word address instead of cl address in case of NC access
@@ -457,10 +457,12 @@ module cva6_icache
 
   for (genvar i = 0; i < CVA6Cfg.ICACHE_SET_ASSOC; i++) begin : gen_sram
     // Tag RAM
-    sram #(
+    sram_cache #(
         // tag + valid bit
-        .DATA_WIDTH(CVA6Cfg.ICACHE_TAG_WIDTH + 1),
-        .NUM_WORDS (ICACHE_NUM_WORDS)
+        .DATA_WIDTH (CVA6Cfg.ICACHE_TAG_WIDTH + 1),
+        .BYTE_ACCESS(0),
+        .TECHNO_CUT (CVA6Cfg.TechnoCut),
+        .NUM_WORDS  (ICACHE_NUM_WORDS)
     ) tag_sram (
         .clk_i  (clk_i),
         .rst_ni (rst_ni),
@@ -480,11 +482,13 @@ module cva6_icache
     assign vld_rdata[i]    = cl_tag_valid_rdata[i][CVA6Cfg.ICACHE_TAG_WIDTH];
 
     // Data RAM
-    sram #(
-        .USER_WIDTH(CVA6Cfg.ICACHE_USER_LINE_WIDTH),
-        .DATA_WIDTH(CVA6Cfg.ICACHE_LINE_WIDTH),
-        .USER_EN   (CVA6Cfg.FETCH_USER_EN),
-        .NUM_WORDS (ICACHE_NUM_WORDS)
+    sram_cache #(
+        .USER_WIDTH (CVA6Cfg.ICACHE_USER_LINE_WIDTH),
+        .DATA_WIDTH (CVA6Cfg.ICACHE_LINE_WIDTH),
+        .USER_EN    (CVA6Cfg.FETCH_USER_EN),
+        .BYTE_ACCESS(0),
+        .TECHNO_CUT (CVA6Cfg.TechnoCut),
+        .NUM_WORDS  (ICACHE_NUM_WORDS)
     ) data_sram (
         .clk_i  (clk_i),
         .rst_ni (rst_ni),

@@ -48,30 +48,6 @@ package config_pkg;
   typedef struct packed {
     // General Purpose Register Size (in bits)
     int unsigned                 XLEN;
-    // Is FPGA optimization of CV32A6
-    bit                          FPGA_EN;
-    // Number of commit ports
-    int unsigned                 NrCommitPorts;
-    // AXI address width
-    int unsigned                 AxiAddrWidth;
-    // AXI data width
-    int unsigned                 AxiDataWidth;
-    // AXI ID width
-    int unsigned                 AxiIdWidth;
-    // AXI User width
-    int unsigned                 AxiUserWidth;
-    // TODO
-    int unsigned                 MemTidWidth;
-    // Load buffer entry buffer
-    int unsigned                 NrLoadBufEntries;
-    // Floating Point
-    bit                          FpuEn;
-    // Non standard 16bits Floating Point
-    bit                          XF16;
-    // Non standard 16bits Floating Point Alt
-    bit                          XF16ALT;
-    // Non standard 8bits Floating Point
-    bit                          XF8;
     // Atomic RISC-V extension
     bit                          RVA;
     // Bit manipulation RISC-V extension
@@ -80,37 +56,51 @@ package config_pkg;
     bit                          RVV;
     // Compress RISC-V extension
     bit                          RVC;
+    // Hypervisor RISC-V extension
+    bit                          RVH;
     // Zcb RISC-V extension
     bit                          RVZCB;
     // Zcmp RISC-V extension
     bit                          RVZCMP;
-    // Non standard Vector Floating Point
-    bit                          XFVec;
-    // CV-X-IF coprocessor interface is supported
-    bit                          CvxifEn;
     // Zicond RISC-V extension
-    bit                          ZiCondExtEn;
+    bit                          RVZiCond;
+    // Zicntr RISC-V extension
+    bit                          RVZicntr;
+    // Zihpm RISC-V extension
+    bit                          RVZihpm;
+    // Floating Point
+    bit                          RVF;
+    // Floating Point
+    bit                          RVD;
+    // Non standard 16bits Floating Point extension
+    bit                          XF16;
+    // Non standard 16bits Floating Point Alt extension
+    bit                          XF16ALT;
+    // Non standard 8bits Floating Point extension
+    bit                          XF8;
+    // Non standard Vector Floating Point extension
+    bit                          XFVec;
+    // Perf counters
+    bit                          PerfCounterEn;
+    // MMU
+    bit                          MmuPresent;
     // Supervisor mode
     bit                          RVS;
     // User mode
     bit                          RVU;
-    // Scoreboard length
-    int unsigned                 NrScoreboardEntries;
-    // Address to jump when halt request
-    logic [63:0]                 HaltAddress;
-    // Address to jump when exception 
-    logic [63:0]                 ExceptionAddress;
-    // Return address stack depth
-    int unsigned                 RASDepth;
-    // Branch target buffer entries
-    int unsigned                 BTBEntries;
-    // Branch history entries
-    int unsigned                 BHTEntries;
+    // Debug support
+    bit                          DebugEn;
     // Base address of the debug module
     logic [63:0]                 DmBaseAddress;
+    // Address to jump when halt request
+    logic [63:0]                 HaltAddress;
+    // Address to jump when exception
+    logic [63:0]                 ExceptionAddress;
     // Tval Support Enable
     bit                          TvalEn;
-    // Number of PMP entries
+    // MTVEC CSR supports only direct mode
+    bit                          DirectVecOnly;
+    // PMP entries number
     int unsigned                 NrPMPEntries;
     // PMP CSR configuration reset values
     logic [15:0][63:0]           PMPCfgRstVal;
@@ -118,67 +108,116 @@ package config_pkg;
     logic [15:0][63:0]           PMPAddrRstVal;
     // PMP CSR read-only bits
     bit [15:0]                   PMPEntryReadOnly;
-    // NOC bus type
-    noc_type_e                   NOCType;
-    // Number of PMA non idempotent rules
+    // PMA non idempotent rules number
     int unsigned                 NrNonIdempotentRules;
     // PMA NonIdempotent region base address
     logic [NrMaxRules-1:0][63:0] NonIdempotentAddrBase;
     // PMA NonIdempotent region length
     logic [NrMaxRules-1:0][63:0] NonIdempotentLength;
-    // Number of PMA regions with execute rules
+    // PMA regions with execute rules number
     int unsigned                 NrExecuteRegionRules;
     // PMA Execute region base address
     logic [NrMaxRules-1:0][63:0] ExecuteRegionAddrBase;
     // PMA Execute region address base
     logic [NrMaxRules-1:0][63:0] ExecuteRegionLength;
-    // Number of PMA regions with cache rules
+    // PMA regions with cache rules number
     int unsigned                 NrCachedRegionRules;
     // PMA cache region base address
     logic [NrMaxRules-1:0][63:0] CachedRegionAddrBase;
     // PMA cache region rules
     logic [NrMaxRules-1:0][63:0] CachedRegionLength;
-    // Maximum number of outstanding stores
-    int unsigned                 MaxOutstandingStores;
-    // Debug support
-    bit                          DebugEn;
+    // CV-X-IF coprocessor interface enable
+    bit                          CvxifEn;
+    // NOC bus type
+    noc_type_e                   NOCType;
+    // AXI address width
+    int unsigned                 AxiAddrWidth;
+    // AXI data width
+    int unsigned                 AxiDataWidth;
+    // AXI ID width
+    int unsigned                 AxiIdWidth;
+    // AXI User width
+    int unsigned                 AxiUserWidth;
     // AXI burst in write
     bit                          AxiBurstWriteEn;
+    // TODO
+    int unsigned                 MemTidWidth;
     // Instruction cache size (in bytes)
     int unsigned                 IcacheByteSize;
     // Instruction cache associativity (number of ways)
     int unsigned                 IcacheSetAssoc;
-    // Instruction line width
+    // Instruction cache line width
     int unsigned                 IcacheLineWidth;
+    // Cache Type
+    cache_type_t                 DCacheType;
+    // Data cache ID
+    int unsigned                 DcacheIdWidth;
     // Data cache size (in bytes)
     int unsigned                 DcacheByteSize;
     // Data cache associativity (number of ways)
     int unsigned                 DcacheSetAssoc;
-    // Data line width
+    // Data cache line width
     int unsigned                 DcacheLineWidth;
-    // TODO
+    // User field on data bus enable
     int unsigned                 DataUserEn;
-    // TODO
-    int unsigned                 FetchUserWidth;
-    // TODO
+    // Write-through data cache write buffer depth
+    int unsigned                 WtDcacheWbufDepth;
+    // User field on fetch bus enable
     int unsigned                 FetchUserEn;
+    // Width of fetch user field
+    int unsigned                 FetchUserWidth;
+    // Is FPGA optimization of CV32A6
+    bit                          FpgaEn;
+    // Is Techno Cut instanciated
+    bit                          TechnoCut;
+    // Number of commit ports
+    int unsigned                 NrCommitPorts;
+    // Load cycle latency number
+    int unsigned                 NrLoadPipeRegs;
+    // Store cycle latency number
+    int unsigned                 NrStorePipeRegs;
+    // Scoreboard length
+    int unsigned                 NrScoreboardEntries;
+    // Load buffer entry buffer
+    int unsigned                 NrLoadBufEntries;
+    // Maximum number of outstanding stores
+    int unsigned                 MaxOutstandingStores;
+    // Return address stack depth
+    int unsigned                 RASDepth;
+    // Branch target buffer entries
+    int unsigned                 BTBEntries;
+    // Branch history entries
+    int unsigned                 BHTEntries;
+    // MMU instruction TLB entries
+    int unsigned                 InstrTlbEntries;
+    // MMU data TLB entries
+    int unsigned                 DataTlbEntries;
+    // MMU option to use shared TLB
+    bit unsigned                 UseSharedTlb;
+    // MMU depth of shared TLB
+    int unsigned                 SharedTlbDepth;
   } cva6_user_cfg_t;
 
   typedef struct packed {
     int unsigned XLEN;
     int unsigned VLEN;
     int unsigned PLEN;
+    int unsigned GPLEN;
     bit IS_XLEN32;
     bit IS_XLEN64;
     int unsigned XLEN_ALIGN_BYTES;
     int unsigned ASID_WIDTH;
+    int unsigned VMID_WIDTH;
 
-    bit          FPGA_EN;
+    bit          FpgaEn;
+    bit          TechnoCut;
     /// Number of commit ports, i.e., maximum number of instructions that the
     /// core can retire per cycle. It can be beneficial to have more commit
     /// ports than issue ports, for the scoreboard to empty out in case one
     /// instruction stalls a little longer.
     int unsigned NrCommitPorts;
+    int unsigned NrLoadPipeRegs;
+    int unsigned NrStorePipeRegs;
     /// AXI parameters.
     int unsigned AxiAddrWidth;
     int unsigned AxiDataWidth;
@@ -186,7 +225,8 @@ package config_pkg;
     int unsigned AxiUserWidth;
     int unsigned MEM_TID_WIDTH;
     int unsigned NrLoadBufEntries;
-    bit          FpuEn;
+    bit          RVF;
+    bit          RVD;
     bit          XF16;
     bit          XF16ALT;
     bit          XF8;
@@ -194,17 +234,18 @@ package config_pkg;
     bit          RVB;
     bit          RVV;
     bit          RVC;
+    bit          RVH;
     bit          RVZCB;
     bit          RVZCMP;
     bit          XFVec;
     bit          CvxifEn;
-    bit          ZiCondExtEn;
+    bit          RVZiCond;
+    bit          RVZicntr;
+    bit          RVZihpm;
 
     int unsigned NR_SB_ENTRIES;
     int unsigned TRANS_ID_BITS;
 
-    bit          RVF;
-    bit          RVD;
     bit          FpPresent;
     bit          NSX;
     int unsigned FLen;
@@ -215,16 +256,26 @@ package config_pkg;
     int unsigned NrRgprPorts;
     int unsigned NrWbPorts;
     bit          EnableAccelerator;
+    bit          PerfCounterEn;
+    bit          MmuPresent;
     bit          RVS;                //Supervisor mode
     bit          RVU;                //User mode
 
-    logic [63:0]                 HaltAddress;
-    logic [63:0]                 ExceptionAddress;
-    int unsigned                 RASDepth;
-    int unsigned                 BTBEntries;
-    int unsigned                 BHTEntries;
+    logic [63:0] HaltAddress;
+    logic [63:0] ExceptionAddress;
+    int unsigned RASDepth;
+    int unsigned BTBEntries;
+    int unsigned BHTEntries;
+    int unsigned InstrTlbEntries;
+    int unsigned DataTlbEntries;
+    bit unsigned UseSharedTlb;
+    int unsigned SharedTlbDepth;
+    int unsigned VpnLen;
+    int unsigned PtLevels;
+
     logic [63:0]                 DmBaseAddress;
     bit                          TvalEn;
+    bit                          DirectVecOnly;
     int unsigned                 NrPMPEntries;
     logic [15:0][63:0]           PMPCfgRstVal;
     logic [15:0][63:0]           PMPAddrRstVal;
@@ -250,6 +301,8 @@ package config_pkg;
     int unsigned ICACHE_TAG_WIDTH;
     int unsigned ICACHE_LINE_WIDTH;
     int unsigned ICACHE_USER_LINE_WIDTH;
+    cache_type_t DCacheType;
+    int unsigned DcacheIdWidth;
     int unsigned DCACHE_SET_ASSOC;
     int unsigned DCACHE_SET_ASSOC_WIDTH;
     int unsigned DCACHE_INDEX_WIDTH;
@@ -263,24 +316,29 @@ package config_pkg;
     int unsigned DCACHE_MAX_TX;
 
     int unsigned DATA_USER_EN;
+    int unsigned WtDcacheWbufDepth;
     int unsigned FETCH_USER_WIDTH;
     int unsigned FETCH_USER_EN;
-    int unsigned AXI_USER_EN;
+    bit          AXI_USER_EN;
 
     int unsigned FETCH_WIDTH;
+    int unsigned FETCH_ALIGN_BITS;
     int unsigned INSTR_PER_FETCH;
     int unsigned LOG2_INSTR_PER_FETCH;
 
     int unsigned ModeW;
     int unsigned ASIDW;
+    int unsigned VMIDW;
     int unsigned PPNW;
+    int unsigned GPPNW;
     vm_mode_t MODE_SV;
     int unsigned SV;
+    int unsigned SVX;
   } cva6_cfg_t;
 
   /// Empty configuration to sanity check proper parameter passing. Whenever
   /// you develop a module that resides within the core, assign this constant.
-  localparam cva6_cfg_t cva6_cfg_empty = '0;
+  localparam cva6_cfg_t cva6_cfg_empty = cva6_cfg_t'(0);
 
   /// Utility function being called to check parameters. Not all values make
   /// sense for all parameters, here is the place to sanity check them.
@@ -288,8 +346,8 @@ package config_pkg;
     // pragma translate_off
 `ifndef VERILATOR
     assert (Cfg.RASDepth > 0);
-    assert (2 ** $clog2(Cfg.BTBEntries) == Cfg.BTBEntries);
-    assert (2 ** $clog2(Cfg.BHTEntries) == Cfg.BHTEntries);
+    assert (Cfg.BTBEntries == 0 || (2 ** $clog2(Cfg.BTBEntries) == Cfg.BTBEntries));
+    assert (Cfg.BHTEntries == 0 || (2 ** $clog2(Cfg.BHTEntries) == Cfg.BHTEntries));
     assert (Cfg.NrNonIdempotentRules <= NrMaxRules);
     assert (Cfg.NrExecuteRegionRules <= NrMaxRules);
     assert (Cfg.NrCachedRegionRules <= NrMaxRules);

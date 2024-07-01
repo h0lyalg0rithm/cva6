@@ -30,6 +30,10 @@ if ! [ -n "$DV_SIMULATORS" ]; then
   DV_SIMULATORS=veri-testharness
 fi
 
+if ! [ -n "$UVM_VERBOSITY" ]; then
+    export UVM_VERBOSITY=UVM_NONE
+fi
+
 make clean
 make -C verif/sim clean_all
 
@@ -74,15 +78,17 @@ cflags=(
         -DNOPRINT
 )
 
-default_config="cv32a6_embedded"
+default_config="cv32a65x"
 isa="rv32imc_zba_zbb_zbc_zbs"
 
 set -x
 python3 cva6.py \
         --target hwconfig \
-        --hwconfig_opts="--default_config=$default_config --isa=$isa --NrLoadPipeRegs=0" \
+        --isa "$isa" \
+        --hwconfig_opts="$default_config" \
         --iss="$DV_SIMULATORS" \
         --iss_yaml=cva6.yaml \
         --c_tests "$src0" \
         --gcc_opts "${srcA[*]} ${cflags[*]}" \
-        --linker ../tests/custom/common/test.ld
+        --linker ../tests/custom/common/test.ld \
+        $DV_OPTS

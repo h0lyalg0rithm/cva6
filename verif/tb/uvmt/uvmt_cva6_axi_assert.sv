@@ -9,19 +9,21 @@
 
 // *************************** AXI features supported by CVA6  ************************** //
 
-module  uvmt_cva6_axi_assert (uvma_axi_intf axi_assert_if);
+`include "uvm_macros.svh"
+
+module  uvmt_cva6_axi_assert#(int HPDCache=2)
+        (uvma_axi_intf axi_assert_if);
 
    import uvm_pkg::*;
 
-
    //check if the CVA6 identify read transaction with an ID equal to 0 or 1
    property AXI4_CVA6_ARID;
-      @(posedge axi_assert_if.clk) disable iff (!axi_assert_if.rst_n) axi_assert_if.ar_valid |-> axi_assert_if.ar_id == 0 || axi_assert_if.ar_id == 1 || (axi_assert_if.ar_id == 3 && axi_assert_if.ar_lock == 1);
+      @(posedge axi_assert_if.clk && (HPDCache != 2)) disable iff (!axi_assert_if.rst_n) axi_assert_if.ar_valid |-> axi_assert_if.ar_id == 0 || axi_assert_if.ar_id == 1 || (axi_assert_if.ar_id == 3 && axi_assert_if.ar_lock == 1);
    endproperty
 
    //check if the CVA6 identify write transaction with an ID equal to 0 or 1
    property AXI4_CVA6_AWID;
-      @(posedge axi_assert_if.clk) disable iff (!axi_assert_if.rst_n) axi_assert_if.aw_valid |-> axi_assert_if.aw_id == 1 || (axi_assert_if.aw_id == 3 && axi_assert_if.aw_atop != 0) || (axi_assert_if.aw_id == 3 && axi_assert_if.aw_lock == 1);
+      @(posedge axi_assert_if.clk && (HPDCache != 2)) disable iff (!axi_assert_if.rst_n) axi_assert_if.aw_valid |-> axi_assert_if.aw_id == 1 || (axi_assert_if.aw_id == 3 && axi_assert_if.aw_atop != 0) || (axi_assert_if.aw_id == 3 && axi_assert_if.aw_lock == 1);
    endproperty
 
    //Check if user-defined extension for read address channel is equal to 0b00
@@ -56,12 +58,12 @@ module  uvmt_cva6_axi_assert (uvma_axi_intf axi_assert_if);
 
    //Check if AWCACHE is always equal to 0b0000
    property AXI4_CVA6_AWCACHE;
-      @(posedge axi_assert_if.clk) disable iff (!axi_assert_if.rst_n) axi_assert_if.aw_valid |-> axi_assert_if.aw_cache == 2;
+      @(posedge axi_assert_if.clk && (HPDCache != 2)) disable iff (!axi_assert_if.rst_n) axi_assert_if.aw_valid |-> axi_assert_if.aw_cache == 2;
    endproperty
 
    //Check if ARCACHE is always equal to 0b0000
    property AXI4_CVA6_ARCACHE;
-      @(posedge axi_assert_if.clk) disable iff (!axi_assert_if.rst_n) axi_assert_if.ar_valid |-> axi_assert_if.ar_cache == 2;
+      @(posedge axi_assert_if.clk && (HPDCache != 2)) disable iff (!axi_assert_if.rst_n) axi_assert_if.ar_valid |-> axi_assert_if.ar_cache == 2;
    endproperty
 
    //Check if Protection attributes for write transaction always take the 0b000
@@ -191,5 +193,3 @@ module  uvmt_cva6_axi_assert (uvma_axi_intf axi_assert_if);
 
 
 endmodule : uvmt_cva6_axi_assert
-
-

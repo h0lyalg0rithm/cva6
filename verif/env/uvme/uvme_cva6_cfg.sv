@@ -32,6 +32,7 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
    rand bit                      enabled;
 
    rand bit                      scoreboard_enabled;
+   rand bit                      tandem_enabled;
    rand bit                      cov_model_enabled;
    rand bit                      cov_cvxif_model_enabled;
    rand bit                      cov_isa_model_enabled;
@@ -48,17 +49,33 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
    // Zicond extension
    rand bit                      ext_zicond_supported;
 
-   //pmp entries
+   // HPDcache support
+   rand bit                      HPDCache_supported;
+
+   // pmp entries
    rand int                      nr_pmp_entries;
+
+   // Zihpm extension
+   rand bit                      ext_zihpm_supported;
+
+   // hypervisor mode
+   rand bit                      mode_h_supported;
+
+   // Handle to RTL configuration
+   rand cva6_cfg_t         CVA6Cfg;
 
    `uvm_object_utils_begin(uvme_cva6_cfg_c)
       `uvm_field_int (                         enabled                     , UVM_DEFAULT          )
       `uvm_field_enum(uvm_active_passive_enum, is_active                   , UVM_DEFAULT          )
       `uvm_field_int (                         scoreboard_enabled          , UVM_DEFAULT          )
+      `uvm_field_int (                         tandem_enabled              , UVM_DEFAULT          )
       `uvm_field_int (                         cov_model_enabled           , UVM_DEFAULT          )
       `uvm_field_int (                         trn_log_enabled             , UVM_DEFAULT          )
       `uvm_field_int (                         ext_zicond_supported        , UVM_DEFAULT          )
+      `uvm_field_int (                         HPDCache_supported          , UVM_DEFAULT          )
       `uvm_field_int (                         nr_pmp_entries              , UVM_DEFAULT          )
+      `uvm_field_int (                         ext_zihpm_supported         , UVM_DEFAULT          )
+      `uvm_field_int (                         mode_h_supported            , UVM_DEFAULT          )
       `uvm_field_int (                         sys_clk_period            , UVM_DEFAULT + UVM_DEC)
 
       `uvm_field_object(clknrst_cfg, UVM_DEFAULT)
@@ -83,45 +100,51 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
       soft sys_clk_period          == uvme_cva6_sys_default_clk_period; // see uvme_cva6_constants.sv
    }
 
-   constraint cvxif_feature { //CV32A60X do not support dual read & write also the memory interface
-      cvxif_cfg.dual_read_write_support_x == 0;
-      cvxif_cfg.load_store_support_x == 0;
-      cvxif_cfg.seq_cus_instr_x2_enabled == 1;
-      cvxif_cfg.reg_cus_crosses_enabled == 0;
+   constraint cvxif_feature { //CV32A65X do not support dual read & write also the memory interface
+      cvxif_cfg.dual_read_write_support_x  == 0;
+      cvxif_cfg.load_store_support_x       == 0;
+      cvxif_cfg.seq_cus_instr_x2_enabled   == 1;
+      cvxif_cfg.reg_cus_crosses_enabled    == 0;
+      cvxif_cfg.mode_s_supported           == CVA6Cfg.RVS;
+      cvxif_cfg.mode_u_supported           == CVA6Cfg.RVU;
    }
+
    constraint cva6_riscv_cons {
-      xlen == uvma_core_cntrl_pkg::MXL_32;
+      xlen == CVA6Cfg.XLEN;
       ilen == 32;
 
       ext_i_supported        == 1;
-      ext_a_supported        == 0;
+      ext_a_supported        == CVA6Cfg.RVA;
       ext_m_supported        == 1;
-      ext_c_supported        == 1;
+      ext_c_supported        == CVA6Cfg.RVC;
       ext_p_supported        == 0;
-      ext_v_supported        == 0;
-      ext_f_supported        == 0;
-      ext_d_supported        == 0;
-      ext_zba_supported      == 1;
-      ext_zbb_supported      == 1;
-      ext_zbc_supported      == 1;
+      ext_v_supported        == CVA6Cfg.RVV;
+      ext_f_supported        == CVA6Cfg.RVF;
+      ext_d_supported        == CVA6Cfg.RVD;
+      ext_zba_supported      == CVA6Cfg.RVB;
+      ext_zbb_supported      == CVA6Cfg.RVB;
+      ext_zbc_supported      == CVA6Cfg.RVB;
       ext_zbe_supported      == 0;
       ext_zbf_supported      == 0;
       ext_zbm_supported      == 0;
       ext_zbp_supported      == 0;
       ext_zbr_supported      == 0;
-      ext_zbs_supported      == 1;
+      ext_zbs_supported      == CVA6Cfg.RVB;
       ext_zbt_supported      == 0;
       ext_zifencei_supported == 1;
       ext_zicsr_supported    == 1;
-      ext_zicond_supported   == 0;
-      ext_zcb_supported      == 1;
+      ext_zicond_supported   == CVA6Cfg.RVZiCond;
+      ext_zcb_supported      == CVA6Cfg.RVZCB;
+      ext_zihpm_supported    == 0;
+      ext_zicntr_supported   == 0;
 
-      mode_s_supported       == 0;
-      mode_u_supported       == 0;
+      mode_s_supported       == CVA6Cfg.RVS;
+      mode_u_supported       == CVA6Cfg.RVU;
+      mode_h_supported       == CVA6Cfg.RVH;
 
-      pmp_supported          == 1;
+      pmp_supported          == (CVA6Cfg.NrPMPEntries > 0);
       nr_pmp_entries         == 16;
-      debug_supported        == 0;
+      debug_supported        == CVA6Cfg.DebugEn;
 
       unaligned_access_supported     == 0;
       unaligned_access_amo_supported == 0;
@@ -135,6 +158,7 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
       dm_halt_addr_valid      == 1;
       dm_exception_addr_valid == 1;
       nmi_addr_valid          == 1;
+      HPDCache_supported      == (CVA6Cfg.DCacheType == 2);
    }
 
    constraint ext_const {
@@ -167,7 +191,6 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
          clknrst_cfg.enabled   == 1;
          isacov_cfg.enabled    == 1;
          rvfi_cfg.enabled      == 1;
-         rvfi_cfg.csr_enabled  == 1;
       }
 
       isacov_cfg.seq_instr_group_x2_enabled == 1;
@@ -176,7 +199,9 @@ class uvme_cva6_cfg_c extends uvma_core_cntrl_cfg_c;
       isacov_cfg.seq_instr_x2_enabled       == 1;
       isacov_cfg.reg_crosses_enabled        == 0;
       isacov_cfg.reg_hazards_enabled        == 1;
-      rvfi_cfg.nret                         == cva6_config_pkg::CVA6ConfigNrCommitPorts;
+      rvfi_cfg.nret                         == CVA6Cfg.NrCommitPorts;
+      unified_traps                         == 0;
+      axi_cfg.rand_channel_delay_enabled    == 0;
 
       if (is_active == UVM_ACTIVE) {
          clknrst_cfg.is_active   == UVM_ACTIVE;
@@ -233,6 +258,8 @@ function uvme_cva6_cfg_c::new(string name="uvme_cva6_cfg");
    isacov_cfg.core_cfg = this;
    rvfi_cfg.core_cfg = this;
 
+   $value$plusargs("core_name=%s", this.core_name);
+
 endfunction : new
 
 function void uvme_cva6_cfg_c::sample_parameters(uvma_core_cntrl_cntxt_c cntxt);
@@ -270,21 +297,53 @@ function void uvme_cva6_cfg_c::set_unsupported_csr_mask();
    super.set_unsupported_csr_mask();
 
    // Remove unsupported CSRs for Embedded configuration
-   unsupported_csr_mask[uvma_core_cntrl_pkg::MTVAL] = 1;
+   unsupported_csr_mask[uvma_core_cntrl_pkg::MTVAL2] = 1;
    unsupported_csr_mask[uvma_core_cntrl_pkg::MCOUNTINHIBIT] = 1;
+   unsupported_csr_mask[uvma_core_cntrl_pkg::MTINST] = 1;
 
    // Add supported CSRs for Embedded configuration
    for (int i = 0; i < MAX_NUM_HPMCOUNTERS; i++) begin
       unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMEVENT3+i] = 0;
-      unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3+i] = 0;
-      unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3H+i] = 0;
+      if (xlen == 32) begin
+         unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3+i] = 0;
+         unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3H+i] = 0;
+      end
+      else if (xlen == 64) begin
+         unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3+i] = 1;
+         unsupported_csr_mask[uvma_core_cntrl_pkg::MHPMCOUNTER3H+i] = 1;
+      end
    end
 
-   unsupported_csr_mask[uvma_core_cntrl_pkg::MSTATUSH] = 0;
-   unsupported_csr_mask[uvma_core_cntrl_pkg::CYCLE] = 0;
-   unsupported_csr_mask[uvma_core_cntrl_pkg::INSTRET] = 0;
-   unsupported_csr_mask[uvma_core_cntrl_pkg::CYCLEH] = 0;
-   unsupported_csr_mask[uvma_core_cntrl_pkg::INSTRETH] = 0;
+   // Zihpm extension CSRs
+   if (ext_zihpm_supported) begin
+      for (int i = 0; i < MAX_NUM_HPMCOUNTERS; i++) begin
+         unsupported_csr_mask[uvma_core_cntrl_pkg::HPMCOUNTER3+i] = 0;
+         if (xlen == 32) begin
+            unsupported_csr_mask[uvma_core_cntrl_pkg::HPMCOUNTER3H+i] = 0;
+         end
+         else if (xlen ==64) begin
+            unsupported_csr_mask[uvma_core_cntrl_pkg::HPMCOUNTER3H+i] = 1;
+         end
+      end
+   end
+   else begin
+      for (int i = 0; i < MAX_NUM_HPMCOUNTERS; i++) begin
+         unsupported_csr_mask[uvma_core_cntrl_pkg::HPMCOUNTER3+i] = 1;
+         unsupported_csr_mask[uvma_core_cntrl_pkg::HPMCOUNTER3H+i] = 1;
+      end
+   end
+
+   // Upper Machine mode CSRs
+   if (xlen == 32) begin
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MSTATUSH] = 0;
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MCYCLEH] = 0;
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MINSTRETH] = 0;
+   end
+   else if (xlen == 64) begin
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MSTATUSH] = 1;
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MCYCLEH] = 1;
+      unsupported_csr_mask[uvma_core_cntrl_pkg::MINSTRETH] = 1;
+   end
 
    // Remove unsupported pmp CSRs
    if (nr_pmp_entries == 0) begin

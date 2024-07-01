@@ -16,6 +16,12 @@
 `include "axi/assign.svh"
 `include "rvfi_types.svh"
 
+`ifdef VERILATOR
+`include "custom_uvm_macros.svh"
+`else
+`include "uvm_macros.svh"
+`endif
+
 module ariane_testharness #(
   parameter config_pkg::cva6_cfg_t CVA6Cfg = build_config_pkg::build_config(cva6_config_pkg::cva6_cfg),
   //
@@ -59,6 +65,8 @@ module ariane_testharness #(
   logic        init_done;
   logic [31:0] jtag_exit, dmi_exit;
   logic [31:0] rvfi_exit;
+  logic [31:0] tracer_exit;
+  logic [31:0] tandem_exit;
 
   logic        jtag_TCK;
   logic        jtag_TMS;
@@ -617,7 +625,7 @@ module ariane_testharness #(
   rvfi_probes_t rvfi_probes;
   rvfi_csr_t rvfi_csr;
   rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0]  rvfi_instr;
-  
+
   ariane #(
     .CVA6Cfg              ( CVA6Cfg             ),
     .rvfi_probes_instr_t  ( rvfi_probes_instr_t ),
@@ -664,8 +672,8 @@ module ariane_testharness #(
     end
   end
 
-  
- 
+
+
   cva6_rvfi #(
       .CVA6Cfg   (CVA6Cfg),
       .rvfi_instr_t(rvfi_instr_t),
@@ -694,21 +702,58 @@ module ariane_testharness #(
     .rst_ni(rst_ni),
     .rvfi_i(rvfi_instr),
     .rvfi_csr_i(rvfi_csr),
-    .end_of_test_o(rvfi_exit)
+    .end_of_test_o(tracer_exit)
   );
 
 `ifdef SPIKE_TANDEM
     spike #(
         .CVA6Cfg ( CVA6Cfg ),
-        .rvfi_instr_t(rvfi_instr_t)
+        .rvfi_instr_t(rvfi_instr_t),
+        .rvfi_csr_t(rvfi_csr_t)
     ) i_spike (
         .clk_i,
         .rst_ni,
         .clint_tick_i   ( rtc_i    ),
-        .rvfi_i         ( rvfi_instr )
+        .rvfi_i         ( rvfi_instr ),
+        .rvfi_csr_i     ( rvfi_csr ),
+        .end_of_test_o  ( tandem_exit )
     );
     initial begin
         $display("Running binary in tandem mode");
+    end
+
+    bit tandem_timeout_enable;
+    bit [31:0] tandem_timeout;
+    localparam TANDEM_TIMEOUT_THRESHOLD = 60;
+
+    // Tandem timeout logic
+    always_ff @(posedge clk_i) begin
+        if(tandem_timeout > TANDEM_TIMEOUT_THRESHOLD)
+            tandem_timeout_enable <= 0;
+        else if (tracer_exit)
+            tandem_timeout_enable <= 1;
+
+        if (tandem_timeout_enable)
+            tandem_timeout <= tandem_timeout + 1;
+    end
+
+    always_ff @(posedge clk_i) begin
+        if (tandem_exit || (tandem_timeout > TANDEM_TIMEOUT_THRESHOLD)) begin
+            rvfi_exit <= tracer_exit;
+        end
+
+    end
+`else
+    assign rvfi_exit = tracer_exit;
+`endif
+
+`ifdef VERILATOR
+    initial begin
+        string verbosity = 0;
+        if ($value$plusargs("UVM_VERBOSITY=%s",verbosity)) begin
+          uvm_set_verbosity_level(verbosity);
+          `uvm_info("ariane_testharness", $sformatf("Set UVM_VERBOSITY to %s", verbosity), UVM_NONE)
+        end
     end
 `endif
 

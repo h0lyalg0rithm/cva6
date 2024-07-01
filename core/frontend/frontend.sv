@@ -59,11 +59,11 @@ module frontend
     // Handshake between CACHE and FRONTEND (fetch) - CACHES
     input icache_drsp_t icache_dreq_i,
     // Handshake's data between fetch and decode - ID_STAGE
-    output fetch_entry_t fetch_entry_o,
+    output fetch_entry_t [ariane_pkg::SUPERSCALAR:0] fetch_entry_o,
     // Handshake's valid between fetch and decode - ID_STAGE
-    output logic fetch_entry_valid_o,
+    output logic [ariane_pkg::SUPERSCALAR:0] fetch_entry_valid_o,
     // Handshake's ready between fetch and decode - ID_STAGE
-    input logic fetch_entry_ready_i
+    input logic [ariane_pkg::SUPERSCALAR:0] fetch_entry_ready_i
 );
 
   localparam type bht_update_t = struct packed {
@@ -93,6 +93,9 @@ module frontend
   logic                                                          icache_valid_q;
   ariane_pkg::frontend_exception_t                               icache_ex_valid_q;
   logic                            [           CVA6Cfg.VLEN-1:0] icache_vaddr_q;
+  logic                            [          CVA6Cfg.GPLEN-1:0] icache_gpaddr_q;
+  logic                            [                       31:0] icache_tinst_q;
+  logic                                                          icache_gva_q;
   logic                                                          instr_queue_ready;
   logic                            [CVA6Cfg.INSTR_PER_FETCH-1:0] instr_queue_consumed;
   // upper-most branch-prediction from last cycle
@@ -165,7 +168,6 @@ module frontend
       .addr_o             (addr),
       .instr_o            (instr)
   );
-
   // --------------------
   // Branch Prediction
   // --------------------
@@ -369,7 +371,9 @@ module frontend
     end
     // 1. Default assignment
     if (if_ready) begin
-      npc_d = {fetch_address[CVA6Cfg.VLEN-1:2], 2'b0} + 'h4;
+      npc_d = {
+        fetch_address[CVA6Cfg.VLEN-1:CVA6Cfg.FETCH_ALIGN_BITS] + 1, {CVA6Cfg.FETCH_ALIGN_BITS{1'b0}}
+      };
     end
     // 2. Replay instruction fetch
     if (replay) begin
@@ -418,6 +422,9 @@ module frontend
       icache_data_q     <= '0;
       icache_valid_q    <= 1'b0;
       icache_vaddr_q    <= 'b0;
+      icache_gpaddr_q   <= 'b0;
+      icache_tinst_q    <= 'b0;
+      icache_gva_q      <= 1'b0;
       icache_ex_valid_q <= ariane_pkg::FE_NONE;
       btb_q             <= '0;
       bht_q             <= '0;
@@ -429,8 +436,20 @@ module frontend
       if (icache_dreq_i.valid) begin
         icache_data_q  <= icache_data;
         icache_vaddr_q <= icache_dreq_i.vaddr;
+        if (CVA6Cfg.RVH) begin
+          icache_gpaddr_q <= icache_dreq_i.ex.tval2[CVA6Cfg.GPLEN-1:0];
+          icache_tinst_q  <= icache_dreq_i.ex.tinst;
+          icache_gva_q    <= icache_dreq_i.ex.gva;
+        end else begin
+          icache_gpaddr_q <= 'b0;
+          icache_tinst_q  <= 'b0;
+          icache_gva_q    <= 1'b0;
+        end
+
         // Map the only three exceptions which can occur in the frontend to a two bit enum
-        if (ariane_pkg::MMU_PRESENT && icache_dreq_i.ex.cause == riscv::INSTR_PAGE_FAULT) begin
+        if (CVA6Cfg.MmuPresent && icache_dreq_i.ex.cause == riscv::INSTR_GUEST_PAGE_FAULT) begin
+          icache_ex_valid_q <= ariane_pkg::FE_INSTR_GUEST_PAGE_FAULT;
+        end else if (CVA6Cfg.MmuPresent && icache_dreq_i.ex.cause == riscv::INSTR_PAGE_FAULT) begin
           icache_ex_valid_q <= ariane_pkg::FE_INSTR_PAGE_FAULT;
         end else if (icache_dreq_i.ex.cause == riscv::INSTR_ACCESS_FAULT) begin
           icache_ex_valid_q <= ariane_pkg::FE_INSTR_ACCESS_FAULT;
@@ -465,7 +484,7 @@ module frontend
   //For FPGA, BTB is implemented in read synchronous BRAM
   //while for ASIC, BTB is implemented in D flip-flop
   //and can be read at the same cycle.
-  assign vpc_btb = (CVA6Cfg.FPGA_EN) ? icache_dreq_i.vaddr : icache_vaddr_q;
+  assign vpc_btb = (CVA6Cfg.FpgaEn) ? icache_dreq_i.vaddr : icache_vaddr_q;
 
   if (CVA6Cfg.BTBEntries == 0) begin
     assign btb_prediction = '0;
@@ -538,6 +557,9 @@ module frontend
       .addr_i             (addr),                  // from re-aligner
       .exception_i        (icache_ex_valid_q),     // from I$
       .exception_addr_i   (icache_vaddr_q),
+      .exception_gpaddr_i (icache_gpaddr_q),
+      .exception_tinst_i  (icache_tinst_q),
+      .exception_gva_i    (icache_gva_q),
       .predict_address_i  (predict_address),
       .cf_type_i          (cf_type),
       .valid_i            (instruction_valid),     // from re-aligner

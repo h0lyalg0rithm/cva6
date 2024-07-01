@@ -60,6 +60,12 @@ module store_unit
     output logic [CVA6Cfg.VLEN-1:0] vaddr_o,
     // RVFI information - RVFI
     output [CVA6Cfg.PLEN-1:0] rvfi_mem_paddr_o,
+    // Transformed trap instruction out - TO_BE_COMPLETED
+    output logic [31:0] tinst_o,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
+    output logic hs_ld_st_inst_o,
+    // TO_BE_COMPLETED - TO_BE_COMPLETED
+    output logic hlvx_inst_o,
     // Physical address - TO_BE_COMPLETED
     input logic [CVA6Cfg.PLEN-1:0] paddr_i,
     // Exception raised before store - TO_BE_COMPLETED
@@ -127,8 +133,11 @@ module store_unit
   logic [CVA6Cfg.TRANS_ID_BITS-1:0] trans_id_n, trans_id_q;
 
   // output assignments
-  assign vaddr_o    = lsu_ctrl_i.vaddr; // virtual address
-  assign trans_id_o = trans_id_q; // transaction id from previous cycle
+  assign vaddr_o         = lsu_ctrl_i.vaddr;  // virtual address
+  assign hs_ld_st_inst_o = CVA6Cfg.RVH ? lsu_ctrl_i.hs_ld_st_inst : 1'b0;
+  assign hlvx_inst_o     = CVA6Cfg.RVH ? lsu_ctrl_i.hlvx_inst : 1'b0;
+  assign tinst_o         = CVA6Cfg.RVH ? lsu_ctrl_i.tinst : '0;  // transformed instruction
+  assign trans_id_o      = trans_id_q;  // transaction id from previous cycle
 
   always_comb begin : store_control
     translation_req_o      = 1'b0;
@@ -149,7 +158,7 @@ module store_unit
           pop_st_o = 1'b1;
           // check if translation was valid and we have space in the store buffer
           // otherwise simply stall
-          if (ariane_pkg::MMU_PRESENT && !dtlb_hit_i) begin
+          if (CVA6Cfg.MmuPresent && !dtlb_hit_i) begin
             state_d  = WAIT_TRANSLATION;
             pop_st_o = 1'b0;
           end
@@ -175,7 +184,7 @@ module store_unit
           state_d = VALID_STORE;
           pop_st_o = 1'b1;
 
-          if (ariane_pkg::MMU_PRESENT && !dtlb_hit_i) begin
+          if (CVA6Cfg.MmuPresent && !dtlb_hit_i) begin
             state_d  = WAIT_TRANSLATION;
             pop_st_o = 1'b0;
           end
@@ -204,7 +213,7 @@ module store_unit
         // we didn't receive a valid translation, wait for one
         // but we know that the store queue is not full as we could only have landed here if
         // it wasn't full
-        if (state_q == WAIT_TRANSLATION && ariane_pkg::MMU_PRESENT) begin
+        if (state_q == WAIT_TRANSLATION && CVA6Cfg.MmuPresent) begin
           translation_req_o = 1'b1;
 
           if (dtlb_hit_i) begin

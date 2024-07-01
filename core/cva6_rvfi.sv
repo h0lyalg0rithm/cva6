@@ -28,22 +28,15 @@ module cva6_rvfi
     output rvfi_instr_t [CVA6Cfg.NrCommitPorts-1:0] rvfi_instr_o,
     output rvfi_csr_t rvfi_csr_o
 
-
 );
 
-  // ------------------------------------------
-  // CVA6 configuration
-  // ------------------------------------------
-  // Extended config
-  localparam bit RVF = (CVA6Cfg.IS_XLEN64 | CVA6Cfg.IS_XLEN32) & CVA6Cfg.FpuEn;
-  localparam bit RVD = (CVA6Cfg.IS_XLEN64 ? 1 : 0) & CVA6Cfg.FpuEn;
-  localparam bit FpPresent = RVF | RVD | CVA6Cfg.XF16 | CVA6Cfg.XF16ALT | CVA6Cfg.XF8;
-
-  localparam logic [CVA6Cfg.XLEN-1:0] IsaCode = (CVA6Cfg.XLEN'(CVA6Cfg.RVA) <<  0)                // A - Atomic Instructions extension
+  localparam logic [CVA6Cfg.XLEN-1:0] IsaCode =
+    (CVA6Cfg.XLEN'(CVA6Cfg.RVA) << 0)   // A - Atomic Instructions extension
   | (CVA6Cfg.XLEN'(CVA6Cfg.RVB) << 1)  // C - Bitmanip extension
   | (CVA6Cfg.XLEN'(CVA6Cfg.RVC) << 2)  // C - Compressed extension
   | (CVA6Cfg.XLEN'(CVA6Cfg.RVD) << 3)  // D - Double precision floating-point extension
   | (CVA6Cfg.XLEN'(CVA6Cfg.RVF) << 5)  // F - Single precision floating-point extension
+  | (CVA6Cfg.XLEN'(CVA6Cfg.RVH) << 7)  // H - Hypervisor extension
   | (CVA6Cfg.XLEN'(1) << 8)  // I - RV32I/64I/128I base ISA
   | (CVA6Cfg.XLEN'(1) << 12)  // M - Integer Multiply/Divide extension
   | (CVA6Cfg.XLEN'(0) << 13)  // N - User level interrupts supported
@@ -58,28 +51,30 @@ module cva6_rvfi
   localparam logic [63:0] SMODE_STATUS_READ_MASK = ariane_pkg::smode_status_read_mask(CVA6Cfg);
 
   logic flush;
-  logic issue_instr_ack;
-  logic fetch_entry_valid;
-  logic [31:0] instruction;
-  logic is_compressed;
+  logic [ariane_pkg::SUPERSCALAR:0] issue_instr_ack;
+  logic [ariane_pkg::SUPERSCALAR:0] fetch_entry_valid;
+  logic [ariane_pkg::SUPERSCALAR:0][31:0] instruction;
+  logic [ariane_pkg::SUPERSCALAR:0] is_compressed;
+  logic [ariane_pkg::SUPERSCALAR:0][31:0] truncated;
 
-  logic [CVA6Cfg.TRANS_ID_BITS-1:0] issue_pointer;
+  logic [ariane_pkg::SUPERSCALAR:0][CVA6Cfg.TRANS_ID_BITS-1:0] issue_pointer;
   logic [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.TRANS_ID_BITS-1:0] commit_pointer;
 
   logic flush_unissued_instr;
-  logic decoded_instr_valid;
-  logic decoded_instr_ack;
+  logic [ariane_pkg::SUPERSCALAR:0] decoded_instr_valid;
+  logic [ariane_pkg::SUPERSCALAR:0] decoded_instr_ack;
 
-  logic [CVA6Cfg.XLEN-1:0] rs1_forwarding;
-  logic [CVA6Cfg.XLEN-1:0] rs2_forwarding;
+  logic [ariane_pkg::SUPERSCALAR:0][CVA6Cfg.XLEN-1:0] rs1_forwarding;
+  logic [ariane_pkg::SUPERSCALAR:0][CVA6Cfg.XLEN-1:0] rs2_forwarding;
 
   logic [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.VLEN-1:0] commit_instr_pc;
-  fu_op [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.TRANS_ID_BITS-1:0] commit_instr_op;
+  fu_op [CVA6Cfg.NrCommitPorts-1:0] commit_instr_op;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs1;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rs2;
   logic [CVA6Cfg.NrCommitPorts-1:0][REG_ADDR_SIZE-1:0] commit_instr_rd;
   logic [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.XLEN-1:0] commit_instr_result;
-  logic [CVA6Cfg.NrCommitPorts-1:0][CVA6Cfg.VLEN-1:0] commit_instr_valid;
+  logic [CVA6Cfg.NrCommitPorts-1:0] commit_instr_valid;
+  logic [CVA6Cfg.NrCommitPorts-1:0] commit_drop;
 
   logic [CVA6Cfg.XLEN-1:0] ex_commit_cause;
   logic ex_commit_valid;
@@ -145,6 +140,7 @@ module cva6_rvfi
   assign commit_instr_rd = instr.commit_instr_rd;
   assign commit_instr_result = instr.commit_instr_result;
   assign commit_instr_valid = instr.commit_instr_valid;
+  assign commit_drop = instr.commit_drop;
 
   assign ex_commit_cause = instr.ex_commit_cause;
   assign ex_commit_valid = instr.ex_commit_valid;
@@ -165,23 +161,53 @@ module cva6_rvfi
 
   //ID STAGE
 
+  for (genvar i = 0; i <= ariane_pkg::SUPERSCALAR; i++) begin
+    assign truncated[i] = (is_compressed[i]) ? {16'b0, instruction[i][15:0]} : instruction[i];
+  end
+
   typedef struct packed {
     logic        valid;
     logic [31:0] instr;
   } issue_struct_t;
-  issue_struct_t issue_n, issue_q;
+  issue_struct_t [ariane_pkg::SUPERSCALAR:0] issue_n, issue_q;
+  logic took0;
 
   always_comb begin
     issue_n = issue_q;
+    took0   = 1'b0;
 
-    if (issue_instr_ack) issue_n.valid = 1'b0;
-
-    if ((!issue_q.valid || issue_instr_ack) && fetch_entry_valid) begin
-      issue_n.valid = 1'b1;
-      issue_n.instr = (is_compressed) ? {{16{1'b0}}, instruction[15:0]} : instruction;
+    for (int unsigned i = 0; i <= ariane_pkg::SUPERSCALAR; i++) begin
+      if (issue_instr_ack[i]) begin
+        issue_n[i].valid = 1'b0;
+      end
     end
 
-    if (flush) issue_n.valid = 1'b0;
+    if (!issue_n[ariane_pkg::SUPERSCALAR].valid) begin
+      issue_n[ariane_pkg::SUPERSCALAR].valid = fetch_entry_valid[0];
+      issue_n[ariane_pkg::SUPERSCALAR].instr = truncated[0];
+      took0 = 1'b1;
+    end
+
+    if (!issue_n[0].valid) begin
+      issue_n[0] = issue_n[ariane_pkg::SUPERSCALAR];
+      issue_n[ariane_pkg::SUPERSCALAR].valid = 1'b0;
+    end
+
+    if (!issue_n[ariane_pkg::SUPERSCALAR].valid) begin
+      if (took0) begin
+        issue_n[ariane_pkg::SUPERSCALAR].valid = fetch_entry_valid[ariane_pkg::SUPERSCALAR];
+        issue_n[ariane_pkg::SUPERSCALAR].instr = truncated[ariane_pkg::SUPERSCALAR];
+      end else begin
+        issue_n[ariane_pkg::SUPERSCALAR].valid = fetch_entry_valid[0];
+        issue_n[ariane_pkg::SUPERSCALAR].instr = truncated[0];
+      end
+    end
+
+    if (flush) begin
+      for (int unsigned i = 0; i <= ariane_pkg::SUPERSCALAR; i++) begin
+        issue_n[i].valid = 1'b0;
+      end
+    end
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -209,16 +235,18 @@ module cva6_rvfi
   always_comb begin : issue_fifo
     mem_n = mem_q;
 
-    if (decoded_instr_valid && decoded_instr_ack && !flush_unissued_instr) begin
-      mem_n[issue_pointer] = '{
-          rs1_rdata: rs1_forwarding,
-          rs2_rdata: rs2_forwarding,
-          lsu_addr: '0,
-          lsu_rmask: '0,
-          lsu_wmask: '0,
-          lsu_wdata: '0,
-          instr: issue_q.instr
-      };
+    for (int unsigned i = 0; i <= ariane_pkg::SUPERSCALAR; i++) begin
+      if (decoded_instr_valid[i] && decoded_instr_ack[i] && !flush_unissued_instr) begin
+        mem_n[issue_pointer[i]] = '{
+            rs1_rdata: rs1_forwarding[i],
+            rs2_rdata: rs2_forwarding[i],
+            lsu_addr: '0,
+            lsu_rmask: '0,
+            lsu_wmask: '0,
+            lsu_wdata: '0,
+            instr: issue_q[i].instr
+        };
+      end
     end
 
     if (lsu_rmask != 0) begin
@@ -227,7 +255,7 @@ module cva6_rvfi
     end else if (lsu_wmask != 0) begin
       mem_n[lsu_addr_trans_id].lsu_addr  = lsu_addr;
       mem_n[lsu_addr_trans_id].lsu_wmask = lsu_wmask;
-      mem_n[lsu_addr_trans_id].lsu_wdata = wbdata[1];
+      mem_n[lsu_addr_trans_id].lsu_wdata = wbdata[STORE_WB];
     end
   end
 
@@ -243,35 +271,36 @@ module cva6_rvfi
   // PACK
   //----------------------------------------------------------------------------------------------------------
 
-  always_comb begin
+  always_ff @(posedge clk_i) begin
     for (int i = 0; i < CVA6Cfg.NrCommitPorts; i++) begin
       logic exception;
-      exception = commit_instr_valid[i] && ex_commit_valid;
-      rvfi_instr_o[i].valid    = (commit_ack[i] && !ex_commit_valid) ||
+      exception = commit_instr_valid[i] && ex_commit_valid && !commit_drop[i];
+      rvfi_instr_o[i].valid    <= (commit_ack[i] && !ex_commit_valid && !commit_drop[i]) ||
         (exception && (ex_commit_cause == riscv::ENV_CALL_MMODE ||
                   ex_commit_cause == riscv::ENV_CALL_SMODE ||
                   ex_commit_cause == riscv::ENV_CALL_UMODE));
-      rvfi_instr_o[i].insn = mem_q[commit_pointer[i]].instr;
+      rvfi_instr_o[i].insn <= mem_q[commit_pointer[i]].instr;
       // when trap, the instruction is not executed
-      rvfi_instr_o[i].trap = exception;
-      rvfi_instr_o[i].cause = ex_commit_cause;
-      rvfi_instr_o[i].mode = (CVA6Cfg.DebugEn && debug_mode) ? 2'b10 : priv_lvl;
-      rvfi_instr_o[i].ixl = CVA6Cfg.XLEN == 64 ? 2 : 1;
-      rvfi_instr_o[i].rs1_addr = commit_instr_rs1[i][4:0];
-      rvfi_instr_o[i].rs2_addr = commit_instr_rs2[i][4:0];
-      rvfi_instr_o[i].rd_addr = commit_instr_rd[i][4:0];
-      rvfi_instr_o[i].rd_wdata = (FpPresent && is_rd_fpr(commit_instr_op[i])) ?
-          commit_instr_result[i] : wdata[i];
-      rvfi_instr_o[i].pc_rdata = commit_instr_pc[i];
-      rvfi_instr_o[i].mem_addr = mem_q[commit_pointer[i]].lsu_addr;
+      rvfi_instr_o[i].trap <= exception;
+      rvfi_instr_o[i].cause <= ex_commit_cause;
+      rvfi_instr_o[i].mode <= (CVA6Cfg.DebugEn && debug_mode) ? 2'b10 : priv_lvl;
+      rvfi_instr_o[i].ixl <= CVA6Cfg.XLEN == 64 ? 2 : 1;
+      rvfi_instr_o[i].rs1_addr <= commit_instr_rs1[i][4:0];
+      rvfi_instr_o[i].rs2_addr <= commit_instr_rs2[i][4:0];
+      rvfi_instr_o[i].rd_addr <= commit_instr_rd[i][4:0];
+      rvfi_instr_o[i].rd_wdata <= (CVA6Cfg.FpPresent && is_rd_fpr(
+          commit_instr_op[i]
+      )) ? commit_instr_result[i] : wdata[i];
+      rvfi_instr_o[i].pc_rdata <= commit_instr_pc[i];
+      rvfi_instr_o[i].mem_addr <= mem_q[commit_pointer[i]].lsu_addr;
       // So far, only write paddr is reported. TODO: read paddr
-      rvfi_instr_o[i].mem_paddr = mem_paddr;
-      rvfi_instr_o[i].mem_wmask = mem_q[commit_pointer[i]].lsu_wmask;
-      rvfi_instr_o[i].mem_wdata = mem_q[commit_pointer[i]].lsu_wdata;
-      rvfi_instr_o[i].mem_rmask = mem_q[commit_pointer[i]].lsu_rmask;
-      rvfi_instr_o[i].mem_rdata = commit_instr_result[i];
-      rvfi_instr_o[i].rs1_rdata = mem_q[commit_pointer[i]].rs1_rdata;
-      rvfi_instr_o[i].rs2_rdata = mem_q[commit_pointer[i]].rs2_rdata;
+      rvfi_instr_o[i].mem_paddr <= mem_paddr;
+      rvfi_instr_o[i].mem_wmask <= mem_q[commit_pointer[i]].lsu_wmask;
+      rvfi_instr_o[i].mem_wdata <= mem_q[commit_pointer[i]].lsu_wdata;
+      rvfi_instr_o[i].mem_rmask <= mem_q[commit_pointer[i]].lsu_rmask;
+      rvfi_instr_o[i].mem_rdata <= commit_instr_result[i];
+      rvfi_instr_o[i].rs1_rdata <= mem_q[commit_pointer[i]].rs1_rdata;
+      rvfi_instr_o[i].rs2_rdata <= mem_q[commit_pointer[i]].rs2_rdata;
     end
   end
 
@@ -280,216 +309,113 @@ module cva6_rvfi
   // CSR
   //----------------------------------------------------------------------------------------------------------
 
+  `define CONNECT_RVFI_FULL(CSR_ENABLE_COND, CSR_NAME,
+                            CSR_SOURCE_NAME) \
+    always_ff @(posedge clk_i) begin \
+        if (CSR_ENABLE_COND) begin \
+            rvfi_csr_o.``CSR_NAME``.rdata <= {{CVA6Cfg.XLEN - $bits(CSR_SOURCE_NAME)}, CSR_SOURCE_NAME}; \
+        end \
+    end \
+    assign rvfi_csr_o.``CSR_NAME``.wdata = CSR_ENABLE_COND ? { {{CVA6Cfg.XLEN-$bits(CSR_SOURCE_NAME)}, CSR_SOURCE_NAME} } : 0; \
+    assign rvfi_csr_o.``CSR_NAME``.rmask = CSR_ENABLE_COND ? 1 : 0; \
+    assign rvfi_csr_o.``CSR_NAME``.wmask = (rvfi_csr_o.``CSR_NAME``.rdata != {{CVA6Cfg.XLEN - $bits(CSR_SOURCE_NAME)}, CSR_SOURCE_NAME}) && CSR_ENABLE_COND;
 
-  always_comb begin
+  `define COMMA ,
 
-    rvfi_csr_o.fflags = CVA6Cfg.FpPresent ?
-    '{rdata: {'0, csr.fcsr_q.fflags}, wdata: {'0, csr.fcsr_q.fflags}, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.frm = CVA6Cfg.FpPresent ?
-    '{rdata: {'0, csr.fcsr_q.frm}, wdata: {'0, csr.fcsr_q.frm}, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.fcsr = CVA6Cfg.FpPresent ?
-    '{
-        rdata: {'0, csr.fcsr_q.frm, csr.fcsr_q.fflags},
-        wdata: {'0, csr.fcsr_q.frm, csr.fcsr_q.fflags},
-        rmask: '1,
-        wmask: '1
-    }
-    : '0;
-    rvfi_csr_o.ftran = CVA6Cfg.FpPresent ?
-    '{rdata: {'0, csr.fcsr_q.fprec}, wdata: {'0, csr.fcsr_q.fprec}, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.dcsr = CVA6Cfg.DebugEn ?
-    '{rdata: {'0, csr.dcsr_q}, wdata: {'0, csr.dcsr_q}, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.dpc = CVA6Cfg.DebugEn ?
-    '{rdata: {csr.dpc_q}, wdata: csr.dpc_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.dscratch0 = CVA6Cfg.DebugEn ?
-    '{rdata: csr.dscratch0_q, wdata: csr.dscratch0_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.dscratch1 = CVA6Cfg.DebugEn ?
-    '{rdata: csr.dscratch1_q, wdata: csr.dscratch1_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.sstatus = CVA6Cfg.RVS ?
-    '{
-        rdata: csr.mstatus_extended & SMODE_STATUS_READ_MASK[CVA6Cfg.XLEN-1:0],
-        wdata: csr.mstatus_extended & SMODE_STATUS_READ_MASK[CVA6Cfg.XLEN-1:0],
-        rmask: '1,
-        wmask: '1
-    }
-    : '0;
-    rvfi_csr_o.sie = CVA6Cfg.RVS ?
-    '{rdata: csr.mie_q & csr.mideleg_q, wdata: csr.mie_q & csr.mideleg_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.sip = CVA6Cfg.RVS ?
-    '{rdata: csr.mip_q & csr.mideleg_q, wdata: csr.mip_q & csr.mideleg_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.stvec = CVA6Cfg.RVS ?
-    '{rdata: csr.stvec_q, wdata: csr.stvec_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.scounteren = CVA6Cfg.RVS ?
-    '{rdata: csr.scounteren_q, wdata: csr.scounteren_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.sscratch = CVA6Cfg.RVS ?
-    '{rdata: csr.sscratch_q, wdata: csr.sscratch_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.sepc = CVA6Cfg.RVS ?
-    '{rdata: csr.sepc_q, wdata: csr.sepc_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.scause = CVA6Cfg.RVS ?
-    '{rdata: csr.scause_q, wdata: csr.scause_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.stval = CVA6Cfg.RVS ?
-    '{rdata: csr.stval_q, wdata: csr.stval_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.satp = CVA6Cfg.RVS ?
-    '{rdata: csr.satp_q, wdata: csr.satp_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.mstatus = '{
-        rdata: csr.mstatus_extended,
-        wdata: csr.mstatus_extended,
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.mstatush = CVA6Cfg.XLEN == 32 ?
-    '{rdata: '0, wdata: '0, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.misa = '{rdata: IsaCode, wdata: IsaCode, rmask: '1, wmask: '1};
-    rvfi_csr_o.medeleg = CVA6Cfg.RVS ?
-    '{rdata: csr.medeleg_q, wdata: csr.medeleg_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.mideleg = CVA6Cfg.RVS ?
-    '{rdata: csr.mideleg_q, wdata: csr.mideleg_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.mie = '{rdata: csr.mie_q, wdata: csr.mie_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mtvec = '{rdata: csr.mtvec_q, wdata: csr.mtvec_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mcounteren = '{
-        rdata: csr.mcounteren_q,
-        wdata: csr.mcounteren_q,
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.mscratch = '{rdata: csr.mscratch_q, wdata: csr.mscratch_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mepc = '{rdata: csr.mepc_q, wdata: csr.mepc_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mcause = '{rdata: csr.mcause_q, wdata: csr.mcause_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mtval = '{rdata: csr.mtval_q, wdata: csr.mtval_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.mip = '{rdata: csr.mip_q, wdata: csr.mip_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.menvcfg = '{
-        rdata: {'0, csr.fiom_q},
-        wdata: {'0, csr.fiom_q},
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.menvcfgh = CVA6Cfg.XLEN == 32 ?
-    '{rdata: '0, wdata: '0, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.mvendorid = '{
-        rdata: OPENHWGROUP_MVENDORID,
-        wdata: OPENHWGROUP_MVENDORID,
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.marchid = '{rdata: ARIANE_MARCHID, wdata: ARIANE_MARCHID, rmask: '1, wmask: '1};
-    rvfi_csr_o.mhartid = '{rdata: hart_id_i, wdata: hart_id_i, rmask: '1, wmask: '1};
-    rvfi_csr_o.mcountinhibit = '{
-        rdata: {'0, csr.mcountinhibit_q},
-        wdata: {'0, csr.mcountinhibit_q},
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.mcycle = '{
-        rdata: csr.cycle_q[CVA6Cfg.XLEN-1:0],
-        wdata: csr.cycle_q[CVA6Cfg.XLEN-1:0],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.mcycleh = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.cycle_q[63:32], wdata: csr.cycle_q[63:32], rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.minstret = '{
-        rdata: csr.instret_q[CVA6Cfg.XLEN-1:0],
-        wdata: csr.instret_q[CVA6Cfg.XLEN-1:0],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.minstreth = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.instret_q[63:32], wdata: csr.instret_q[63:32], rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.cycle = '{
-        rdata: csr.cycle_q[CVA6Cfg.XLEN-1:0],
-        wdata: csr.cycle_q[CVA6Cfg.XLEN-1:0],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.cycleh = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.cycle_q[63:32], wdata: csr.cycle_q[63:32], rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.instret = '{
-        rdata: csr.instret_q[CVA6Cfg.XLEN-1:0],
-        wdata: csr.instret_q[CVA6Cfg.XLEN-1:0],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.instreth = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.instret_q[63:32], wdata: csr.instret_q[63:32], rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.dcache = '{rdata: csr.dcache_q, wdata: csr.dcache_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.icache = '{rdata: csr.icache_q, wdata: csr.icache_q, rmask: '1, wmask: '1};
-    rvfi_csr_o.acc_cons = CVA6Cfg.EnableAccelerator ?
-    '{rdata: csr.acc_cons_q, wdata: csr.acc_cons_q, rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.pmpcfg0 = '{
-        rdata: csr.pmpcfg_q[CVA6Cfg.XLEN/8-1:0],
-        wdata: csr.pmpcfg_q[CVA6Cfg.XLEN/8-1:0],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.pmpcfg1 = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.pmpcfg_q[7:4], wdata: csr.pmpcfg_q[7:4], rmask: '1, wmask: '1}
-    : '0;
-    rvfi_csr_o.pmpcfg2 = '{
-        rdata: csr.pmpcfg_q[8+:CVA6Cfg.XLEN/8],
-        wdata: csr.pmpcfg_q[8+:CVA6Cfg.XLEN/8],
-        rmask: '1,
-        wmask: '1
-    };
-    rvfi_csr_o.pmpcfg3 = CVA6Cfg.XLEN == 32 ?
-    '{rdata: csr.pmpcfg_q[15:12], wdata: csr.pmpcfg_q[15:12], rmask: '1, wmask: '1}
-    : '0;
+  `define CONNECT_RVFI_SAME(CSR_ENABLE_COND, CSR_NAME) \
+            `CONNECT_RVFI_FULL(CSR_ENABLE_COND, CSR_NAME, csr.``CSR_NAME``_q)
 
-    for (int i = 0; i < 16; i++) begin
-      rvfi_csr_o.pmpaddr[i] = '{
-          rdata:
-          csr.pmpcfg_q[i].addr_mode[1]
-          == 1'b1 ?
-          {'0, csr.pmpaddr_q[i][CVA6Cfg.PLEN-3:0]}
-          : {
-          '0
-          ,
-          csr.pmpaddr_q[i][CVA6Cfg.PLEN-3:1]
-          ,
-          1'b0
-          },
-          wdata:
-          csr.pmpcfg_q[i].addr_mode[1]
-          == 1'b1 ?
-          {'0, csr.pmpaddr_q[i][CVA6Cfg.PLEN-3:0]}
-          : {
-          '0
-          ,
-          csr.pmpaddr_q[i][CVA6Cfg.PLEN-3:1]
-          ,
-          1'b0
-          },
-          rmask: '1,
-          wmask: '1
-      };
+  `CONNECT_RVFI_FULL(CVA6Cfg.FpPresent, fflags, csr.fcsr_q.fflags)
+  `CONNECT_RVFI_FULL(CVA6Cfg.FpPresent, frm, csr.fcsr_q.frm)
+  `CONNECT_RVFI_FULL(CVA6Cfg.FpPresent, fcsr, { csr.fcsr_q.frm `COMMA csr.fcsr_q.fflags})
+
+  `CONNECT_RVFI_FULL(CVA6Cfg.FpPresent, ftran, csr.fcsr_q.fprec)
+  `CONNECT_RVFI_SAME(CVA6Cfg.FpPresent, dcsr)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.DebugEn, dpc)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.DebugEn, dscratch0)
+  `CONNECT_RVFI_SAME(CVA6Cfg.DebugEn, dscratch1)
+
+  `CONNECT_RVFI_FULL(CVA6Cfg.RVS, sstatus,
+                     csr.mstatus_extended & SMODE_STATUS_READ_MASK[CVA6Cfg.XLEN-1:0])
+
+  `CONNECT_RVFI_FULL(CVA6Cfg.RVS, sie, csr.mie_q & csr.mideleg_q)
+  `CONNECT_RVFI_FULL(CVA6Cfg.RVS, sip, csr.mip_q & csr.mideleg_q)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, stvec)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, scounteren)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, sscratch)
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, sepc)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, scause)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, stval)
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, satp)
+
+  `CONNECT_RVFI_FULL(1'b1, mstatus, csr.mstatus_extended)
+
+  bit [31:0] mstatush_q;
+  `CONNECT_RVFI_FULL(1'b1, mstatush, mstatush_q)
+
+  `CONNECT_RVFI_FULL(1'b1, misa, IsaCode)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, medeleg)
+  `CONNECT_RVFI_SAME(CVA6Cfg.RVS, mideleg)
+
+  `CONNECT_RVFI_SAME(1'b1, mie)
+  `CONNECT_RVFI_SAME(1'b1, mtvec)
+  `CONNECT_RVFI_SAME(1'b1, mcounteren)
+
+  `CONNECT_RVFI_SAME(1'b1, mscratch)
+
+  `CONNECT_RVFI_SAME(1'b1, mepc)
+  `CONNECT_RVFI_SAME(1'b1, mcause)
+  `CONNECT_RVFI_SAME(1'b1, mtval)
+  `CONNECT_RVFI_SAME(1'b1, mip)
+
+  `CONNECT_RVFI_FULL(1'b1, menvcfg, csr.fiom_q)
+
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, menvcfgh, 32'h0)
+
+  `CONNECT_RVFI_FULL(1'b1, mvendorid, OPENHWGROUP_MVENDORID)
+  `CONNECT_RVFI_FULL(1'b1, marchid, ARIANE_MARCHID)
+  `CONNECT_RVFI_FULL(1'b1, mhartid, hart_id_i)
+
+  `CONNECT_RVFI_SAME(1'b1, mcountinhibit)
+
+  `CONNECT_RVFI_FULL(1'b1, mcycle, csr.cycle_q[CVA6Cfg.XLEN-1:0])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, mcycleh, csr.cycle_q[63:32])
+
+  `CONNECT_RVFI_FULL(1'b1, minstret, csr.instret_q[CVA6Cfg.XLEN-1:0])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, minstreth, csr.instret_q[63:32])
+
+  `CONNECT_RVFI_FULL(1'b1, cycle, csr.cycle_q[CVA6Cfg.XLEN-1:0])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, cycleh, csr.cycle_q[63:32])
+
+  `CONNECT_RVFI_FULL(1'b1, instret, csr.instret_q[CVA6Cfg.XLEN-1:0])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, instreth, csr.instret_q[63:32])
+
+  `CONNECT_RVFI_SAME(1'b1, dcache)
+  `CONNECT_RVFI_SAME(1'b1, icache)
+
+  `CONNECT_RVFI_SAME(CVA6Cfg.EnableAccelerator, acc_cons)
+
+  `CONNECT_RVFI_FULL(1'b1, pmpcfg0, csr.pmpcfg_q[CVA6Cfg.XLEN/8-1:0])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, pmpcfg1, csr.pmpcfg_q[7:4])
+
+  `CONNECT_RVFI_FULL(1'b1, pmpcfg2, csr.pmpcfg_q[8+:CVA6Cfg.XLEN/8])
+  `CONNECT_RVFI_FULL(CVA6Cfg.XLEN == 32, pmpcfg3, csr.pmpcfg_q[15:12])
+
+  bit [CVA6Cfg.XLEN-1:0] pmpaddr_q;
+  genvar i;
+  generate
+    for (i = 0; i < 16; i++) begin
+      `CONNECT_RVFI_FULL(1'b1, pmpaddr[i], csr.pmpaddr_q[i][CVA6Cfg.PLEN-3:0])
     end
-    ;
-
-  end
-
+  endgenerate
+  ;
 
 endmodule

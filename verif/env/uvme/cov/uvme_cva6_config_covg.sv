@@ -16,156 +16,111 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.0
 
-covergroup cg_cva6_config(string name) with function sample();
+covergroup cg_cva6_config(string name) with function sample(cva6_cfg_t CVA6Cfg);
 
    option.per_instance = 1;
    option.name = name;
 
-   cp_Xlen : coverpoint cva6_config_pkg::CVA6ConfigXlen {
+   cp_Xlen : coverpoint CVA6Cfg.XLEN {
       bins Xlen ={32};
    }
-   cp_FpuEn : coverpoint cva6_config_pkg::CVA6ConfigFpuEn {
-      bins FpuEn ={0};
+   cp_RVF : coverpoint CVA6Cfg.RVF {
+      bins RVF ={0};
    }
-   cp_F16En : coverpoint cva6_config_pkg::CVA6ConfigF16En {
+   cp_F16En : coverpoint CVA6Cfg.XF16 {
       bins F16En ={0};
    }
-   cp_F16AltEn : coverpoint cva6_config_pkg::CVA6ConfigF16AltEn {
+   cp_F16AltEn : coverpoint CVA6Cfg.XF16ALT {
       bins F16AltEn ={0};
    }
-   cp_F8En : coverpoint cva6_config_pkg::CVA6ConfigF8En {
+   cp_F8En : coverpoint CVA6Cfg.XF8 {
       bins F8En ={0};
    }
-   cp_FVecEn : coverpoint cva6_config_pkg::CVA6ConfigFVecEn {
+   cp_FVecEn : coverpoint CVA6Cfg.XFVec {
       bins FVecEn ={0};
    }
-   cp_CvxifEn : coverpoint cva6_config_pkg::CVA6ConfigCvxifEn {
+   cp_CvxifEn : coverpoint CVA6Cfg.CvxifEn {
       bins CvxifEn ={1};
    }
-   cp_CExtEn : coverpoint cva6_config_pkg::CVA6ConfigCExtEn {
+   cp_CExtEn : coverpoint CVA6Cfg.RVC {
       bins CExtEn ={1};
    }
-   cp_AExtEn : coverpoint cva6_config_pkg::CVA6ConfigAExtEn {
+   cp_AExtEn : coverpoint CVA6Cfg.RVA {
       bins AExtEn ={0};
    }
-   cp_BExtEn : coverpoint cva6_config_pkg::CVA6ConfigBExtEn {
+   cp_BExtEn : coverpoint CVA6Cfg.RVB {
       bins BExtEn ={1};
    }
-   cp_VExtEn : coverpoint cva6_config_pkg::CVA6ConfigVExtEn {
+   cp_VExtEn : coverpoint CVA6Cfg.RVV {
       bins VExtEn ={0};
    }
-   cp_ZiCondExtEn : coverpoint cva6_config_pkg::CVA6ConfigZiCondExtEn {
-      bins ZiCondExtEn ={0};
+   cp_RVZiCond : coverpoint CVA6Cfg.RVZiCond {
+      bins RVZiCond ={0};
    }
-   cp_AxiIdWidth : coverpoint cva6_config_pkg::CVA6ConfigAxiIdWidth {
+   cp_AxiIdWidth : coverpoint CVA6Cfg.AxiIdWidth {
       bins AxiIdWidth ={4};
    }
-   cp_AxiAddrWidth : coverpoint cva6_config_pkg::CVA6ConfigAxiAddrWidth {
+   cp_AxiAddrWidth : coverpoint CVA6Cfg.AxiAddrWidth {
       bins AxiAddrWidth ={64};
    }
-   cp_AxiDataWidth : coverpoint cva6_config_pkg::CVA6ConfigAxiDataWidth {
+   cp_AxiDataWidth : coverpoint CVA6Cfg.AxiDataWidth {
       bins AxiDataWidth ={64};
    }
-   cp_FetchUserEn : coverpoint cva6_config_pkg::CVA6ConfigFetchUserEn {
+   cp_FetchUserEn : coverpoint CVA6Cfg.FETCH_USER_EN {
       bins FetchUserEn ={0};
    }
-   cp_FetchUserWidth : coverpoint cva6_config_pkg::CVA6ConfigFetchUserWidth {
+   cp_FetchUserWidth : coverpoint CVA6Cfg.FETCH_USER_WIDTH {
       bins FetchUserWidth ={32};
    }
-   cp_DataUserEn : coverpoint cva6_config_pkg::CVA6ConfigDataUserEn {
+   cp_DataUserEn : coverpoint CVA6Cfg.DATA_USER_EN {
       bins DataUserEn ={0};
    }
-   cp_DataUserWidth : coverpoint cva6_config_pkg::CVA6ConfigDataUserWidth {
-      bins DataUserWidth ={32};
+   cp_IcacheSetAssoc : coverpoint CVA6Cfg.ICACHE_SET_ASSOC {
+      bins IcacheSetAssoc ={2};
    }
-   cp_IcacheByteSize : coverpoint cva6_config_pkg::CVA6ConfigIcacheByteSize {
-      bins IcacheByteSize ={16384};
-   }
-   cp_IcacheSetAssoc : coverpoint cva6_config_pkg::CVA6ConfigIcacheSetAssoc {
-      bins IcacheSetAssoc ={4};
-   }
-   cp_IcacheLineWidth : coverpoint cva6_config_pkg::CVA6ConfigIcacheLineWidth {
+   cp_IcacheLineWidth : coverpoint CVA6Cfg.ICACHE_LINE_WIDTH {
       bins IcacheLineWidth ={128};
    }
-   cp_DcacheByteSize : coverpoint cva6_config_pkg::CVA6ConfigDcacheByteSize {
-      bins DcacheByteSize ={32768};
-   }
-   cp_DcacheSetAssoc : coverpoint cva6_config_pkg::CVA6ConfigDcacheSetAssoc {
+   cp_DcacheSetAssoc : coverpoint CVA6Cfg.DCACHE_SET_ASSOC {
       bins DcacheSetAssoc ={8};
    }
-   cp_DcacheLineWidth : coverpoint cva6_config_pkg::CVA6ConfigDcacheLineWidth {
+   cp_DcacheLineWidth : coverpoint CVA6Cfg.DCACHE_LINE_WIDTH {
       bins DcacheLineWidth ={128};
    }
-   cp_DcacheIdWidth : coverpoint cva6_config_pkg::CVA6ConfigDcacheIdWidth {
-      bins DcacheIdWidth ={1};
-   }
-   cp_MemTidWidth : coverpoint cva6_config_pkg::CVA6ConfigMemTidWidth {
-      bins MemTidWidth ={2};
-   }
-   cp_WtDcacheWbufDepth : coverpoint cva6_config_pkg::CVA6ConfigWtDcacheWbufDepth {
-      bins WtDcacheWbufDepth ={2};
-   }
-   cp_NrCommitPorts : coverpoint cva6_config_pkg::CVA6ConfigNrCommitPorts {
+   cp_NrCommitPorts : coverpoint CVA6Cfg.NrCommitPorts {
       bins NrCommitPorts ={1};
    }
-   cp_NrScoreboardEntries : coverpoint cva6_config_pkg::CVA6ConfigNrScoreboardEntries {
-      bins NrScoreboardEntries ={4};
+   cp_FpgaEn : coverpoint CVA6Cfg.FpgaEn {
+      bins FpgaEn ={0};
    }
-   cp_FPGAEn : coverpoint cva6_config_pkg::CVA6ConfigFPGAEn {
-      bins FPGAEn ={0};
+   cp_NrLoadBufEntries : coverpoint CVA6Cfg.NrLoadBufEntries {
+      bins NrLoadBufEntries ={2};
    }
-   cp_NrLoadPipeRegs : coverpoint cva6_config_pkg::CVA6ConfigNrLoadPipeRegs {
-      bins NrLoadPipeRegs ={0};
-   }
-   cp_NrStorePipeRegs : coverpoint cva6_config_pkg::CVA6ConfigNrStorePipeRegs {
-      bins NrStorePipeRegs ={0};
-   }
-   cp_NrLoadBufEntries : coverpoint cva6_config_pkg::CVA6ConfigNrLoadBufEntries {
-      bins NrLoadBufEntries ={1};
-   }
-   cp_InstrTlbEntries : coverpoint cva6_config_pkg::CVA6ConfigInstrTlbEntries {
-      bins InstrTlbEntries ={2};
-   }
-   cp_DataTlbEntries : coverpoint cva6_config_pkg::CVA6ConfigDataTlbEntries {
-      bins DataTlbEntries ={2};
-   }
-   cp_RASDepth : coverpoint cva6_config_pkg::CVA6ConfigRASDepth {
+   cp_RASDepth : coverpoint CVA6Cfg.RASDepth {
       bins RASDepth ={2};
    }
-   cp_BTBEntries : coverpoint cva6_config_pkg::CVA6ConfigBTBEntries {
+   cp_BTBEntries : coverpoint CVA6Cfg.BTBEntries {
       bins BTBEntries ={0};
    }
-   cp_BHTEntries : coverpoint cva6_config_pkg::CVA6ConfigBHTEntries {
+   cp_BHTEntries : coverpoint CVA6Cfg.BHTEntries {
       bins BHTEntries ={32};
    }
-   cp_NrPMPEntries : coverpoint cva6_config_pkg::CVA6ConfigNrPMPEntries {
+   cp_NrPMPEntries : coverpoint CVA6Cfg.NrPMPEntries {
       bins NrPMPEntries ={8};
    }
-   cp_PerfCounterEn : coverpoint cva6_config_pkg::CVA6ConfigPerfCounterEn {
-      bins PerfCounterEn ={0};
-   }
-   cp_DcacheType : coverpoint cva6_config_pkg::CVA6ConfigDcacheType {
-      bins DcacheType ={config_pkg::WT};
-   }
-   cp_MmuPresent : coverpoint cva6_config_pkg::CVA6ConfigMmuPresent {
-      bins MmuPresent ={0};
-   }
-   cp_RvfiTrace : coverpoint cva6_config_pkg::CVA6ConfigRvfiTrace {
-      bins RvfiTrace ={1};
-   }
-   cp_HaltAddress : coverpoint cva6_config_pkg::cva6_cfg.HaltAddress {
+   cp_HaltAddress : coverpoint CVA6Cfg.HaltAddress {
       bins HaltAddress ={64'h800};
    }
-   cp_ExceptionAddress : coverpoint cva6_config_pkg::cva6_cfg.ExceptionAddress {
+   cp_ExceptionAddress : coverpoint CVA6Cfg.ExceptionAddress {
       bins ExceptionAddress ={64'h808};
    }
 endgroup: cg_cva6_config
 
-covergroup cg_cva6_boot_addr(string name) with function sample(bit [cva6_config_pkg::CVA6ConfigXlen-1:0] boot_addr);
+covergroup cg_cva6_boot_addr(string name) with function sample(uvme_cva6_cfg_c cfg);
    option.per_instance = 1;
    option.name = name;
    
-   cp_boot_addr : coverpoint boot_addr {
+   cp_boot_addr : coverpoint cfg.boot_addr {
       bins BOOT_ADDR_0 ={0};
       bins BOOT_ADDR_LOW ={[1:'h10000_0000]};
       bins BOOT_ADDR_HIGH ={['h10000_0000:$]};
@@ -207,7 +162,7 @@ class uvme_cva6_config_covg_c extends uvm_component;
    // Objects
    uvme_cva6_cfg_c         cfg      ;
    uvme_cva6_cntxt_c       cntxt    ;
-   
+
    `uvm_analysis_imp_decl(_reset)
    uvm_analysis_imp_reset #(uvma_clknrst_mon_trn_c, uvme_cva6_config_covg_c) reset_imp;
    
@@ -259,8 +214,8 @@ endfunction : build_phase
 
 function void uvme_cva6_config_covg_c::sample_cva6_config();
 
-   config_cg.sample();
-   boot_addr_cg.sample(cfg.boot_addr);
+   config_cg.sample(cfg.CVA6Cfg);
+   boot_addr_cg.sample(cfg);
    clock_period_cg.sample(cfg.sys_clk_period);
    
 endfunction : sample_cva6_config

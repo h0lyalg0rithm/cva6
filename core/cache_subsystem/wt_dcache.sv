@@ -122,7 +122,7 @@ module wt_dcache
   logic     [         CVA6Cfg.DCACHE_MAX_TX-1:0]                                  tx_vld;
 
   // wbuffer <-> memory
-  wbuffer_t [             DCACHE_WBUF_DEPTH-1:0]                                  wbuffer_data;
+  wbuffer_t [     CVA6Cfg.WtDcacheWbufDepth-1:0]                                  wbuffer_data;
 
 
   ///////////////////////////////////////////////////////
@@ -191,7 +191,7 @@ module wt_dcache
   // 0 is used by MMU, 1 by READ access requests
   for (genvar k = 0; k < NumPorts - 1; k++) begin : gen_rd_ports
     // set these to high prio ports
-    if ((k == 0 && MMU_PRESENT) || (k == 1) || (k == 2 && CVA6Cfg.EnableAccelerator)) begin
+    if ((k == 0 && CVA6Cfg.MmuPresent) || (k == 1) || (k == 2 && CVA6Cfg.EnableAccelerator)) begin
       assign rd_prio[k] = 1'b1;
       wt_dcache_ctrl #(
           .CVA6Cfg(CVA6Cfg),

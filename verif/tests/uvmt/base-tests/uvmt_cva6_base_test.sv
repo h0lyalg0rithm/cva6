@@ -47,7 +47,7 @@ class uvmt_cva6_base_test_c extends uvm_test;
    } uvma_axi_version_enum;
 
    // Handles testbench interfaces
-   virtual uvmt_rvfi_if                  rvfi_vif;  // virtual peripheral status
+   virtual uvmt_tb_exit_if tb_exit_vif;                // Exit vif
 //   virtual uvmt_cva6_core_cntrl_if   core_cntrl_vif; // control inputs to the core
 
    // Default sequences
@@ -241,25 +241,16 @@ function void uvmt_cva6_base_test_c::build_phase(uvm_phase phase);
    create_env       ();
    create_components();
 
-   `uvm_info("BASE TEST", $sformatf("AXI config version = %s", env_cfg.axi_cfg.version), UVM_LOW)
-
    factory = uvm_factory::get();
 
-   case (env_cfg.axi_cfg.version)
-      UVMA_AXI_VERSION_1P2 : begin
-         factory.set_type_override_by_name("uvma_axi_synchronizer_c", "uvma_axi_ext_synchronizer_c");
-         `uvm_info("BASE TEST", $sformatf("AXI EXT SYNCHRONIZER"), UVM_LOW)
-      end
-      UVMA_AXI_VERSION_1P3 : begin
-         factory.set_type_override_by_name("uvma_axi_synchronizer_c", "uvma_axi_amo_synchronizer_c");
-         `uvm_info("BASE TEST", $sformatf("AXI AMO SYNCHRONIZER"), UVM_LOW)
-      end
-   endcase
+   if(env_cfg.axi_cfg.version == 1) begin
+      factory.set_type_override_by_name("uvma_axi_synchronizer_c", "uvma_axi_amo_synchronizer_c");
+      `uvm_info("BASE TEST", $sformatf("AXI AMO SYNCHRONIZER"), UVM_LOW)
+   end
 
    if(!env_cfg.axi_cfg.preload_mem) begin
       factory.set_type_override_by_name("uvma_axi_fw_preload_seq_c", "uvme_axi_fw_preload_seq_c");
    end
-
 
 endfunction : build_phase
 
@@ -342,11 +333,11 @@ endfunction : phase_ended
 
 function void uvmt_cva6_base_test_c::retrieve_vifs();
 
-   if (!uvm_config_db#(virtual uvmt_rvfi_if)::get(this, "", "rvfi_vif", rvfi_vif)) begin
-      `uvm_fatal("VIF", $sformatf("Could not find rvfi_vif handle of type %s in uvm_config_db", $typename(rvfi_vif)))
+   if (!uvm_config_db#(virtual uvmt_tb_exit_if)::get(this, "", "tb_exit_vif", tb_exit_vif)) begin
+      `uvm_fatal("VIF", $sformatf("Could not find tb_exit_vif handle of type %s in uvm_config_db", $typename(tb_exit_vif)))
    end
    else begin
-      `uvm_info("VIF", $sformatf("Found rvfi_vif handle of type %s in uvm_config_db", $typename(rvfi_vif)), UVM_DEBUG)
+      `uvm_info("VIF", $sformatf("Found tb_exit_vif handle of type %s in uvm_config_db", $typename(tb_exit_vif)), UVM_DEBUG)
    end
 
 endfunction : retrieve_vifs
