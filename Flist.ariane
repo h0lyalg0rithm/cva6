@@ -25,7 +25,6 @@ core/include/riscv_pkg.sv
 corev_apu/riscv-dbg/src/dm_pkg.sv
 vendor/openhwgroup/cvfpu/src/fpnew_pkg.sv
 core/include/ariane_pkg.sv
-core/include/acc_pkg.sv
 corev_apu/tb/ariane_soc_pkg.sv
 vendor/pulp-platform/axi/src/axi_pkg.sv
 corev_apu/tb/ariane_axi_pkg.sv
@@ -105,6 +104,7 @@ core/cache_subsystem/wt_dcache_wbuffer.sv
 core/cache_subsystem/wt_dcache.sv
 core/cache_subsystem/cva6_icache.sv
 core/cache_subsystem/cva6_icache_axi_wrapper.sv
+core/cache_subsystem/wt_l15_types.sv
 core/cache_subsystem/wt_l15_adapter.sv
 core/cache_subsystem/wt_cache_subsystem.sv
 corev_apu/clint/clint.sv

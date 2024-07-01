@@ -16,6 +16,7 @@
 module ariane_verilog_wrap
     import ariane_pkg::*;
     import config_pkg::*;
+    import wt_l15_types::*;
 #(
   parameter int unsigned               RASDepth              = 2,
   parameter int unsigned               BTBEntries            = 32,
@@ -80,7 +81,9 @@ module ariane_verilog_wrap
   parameter logic [NrMaxRules*64-1:0]  CachedRegionAddrBase  = '0,
   parameter logic [NrMaxRules*64-1:0]  CachedRegionLength    = '0,
   // PMP
-  parameter int unsigned               NrPMPEntries          =  8
+  parameter int unsigned               NrPMPEntries          =  8,
+  parameter type l15_req_t = wt_l15_types::l15_req_t,
+  parameter type l15_rtrn_t = wt_l15_types::l15_rtrn_t
 ) (
   input                       clk_i,
   input                       reset_l,      // this is an openpiton-specific name, do not change (hier. paths in TB use this)
@@ -96,14 +99,14 @@ module ariane_verilog_wrap
   input                       debug_req_i,  // debug request (async)
 
   // L15 (memory side)
-  output [$size(wt_cache_pkg::l15_req_t)-1:0]  l15_req_o,
-  input  [$size(wt_cache_pkg::l15_rtrn_t)-1:0] l15_rtrn_i
+  output [$size(l15_req_t)-1:0]  l15_req_o,
+  input  [$size(l15_rtrn_t)-1:0] l15_rtrn_i
  );
 
 // assign bitvector to packed struct and vice versa
   // L15 (memory side)
-  wt_cache_pkg::l15_req_t  l15_req;
-  wt_cache_pkg::l15_rtrn_t l15_rtrn;
+  l15_req_t  l15_req;
+  l15_rtrn_t l15_rtrn;
 
   assign l15_req_o = l15_req;
   assign l15_rtrn  = l15_rtrn_i;
@@ -118,7 +121,7 @@ module ariane_verilog_wrap
   // logic wake_up_d, wake_up_q;
   // logic rst_n;
 
-  // assign wake_up_d = wake_up_q || ((l15_rtrn.l15_returntype == wt_cache_pkg::L15_INT_RET) && l15_rtrn.l15_val);
+  // assign wake_up_d = wake_up_q || ((l15_rtrn.l15_returntype == L15_INT_RET) && l15_rtrn.l15_val);
 
   // always_ff @(posedge clk_i or negedge reset_l) begin : p_regs
   //   if(~reset_l) begin
@@ -243,13 +246,14 @@ module ariane_verilog_wrap
     CachedRegionLength:     CachedRegionLength,
     MaxOutstandingStores:   MaxOutstandingStores,
     DebugEn:                DebugEn,
-    AxiBurstWriteEn:        AxiBurstWriteEn
+    AxiBurstWriteEn:        AxiBurstWriteEn,
+    MemTidWidth:            2
   };
 
   ariane #(
     .CVA6Cfg    ( build_config_pkg::build_config(cva6_user_cfg) ),
-    .noc_req_t  ( wt_cache_pkg::l15_req_t  ),
-    .noc_resp_t ( wt_cache_pkg::l15_rtrn_t )
+    .noc_req_t  ( l15_req_t  ),
+    .noc_resp_t ( l15_rtrn_t )
   ) ariane (
     .clk_i       ( clk_i      ),
     .rst_ni      ( spc_grst_l ),
