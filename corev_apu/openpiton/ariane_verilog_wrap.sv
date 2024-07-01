@@ -251,15 +251,16 @@ module ariane_verilog_wrap
     MemTidWidth:            2,
     FPGA_EN:                1'b0,
     RVZCMP:                 ZcmpExtEn,
-    NrScoreboardEntries:    8//,
-    //IcacheByteSize:         16384,
-    //IcacheSetAssoc:         4,
-    //IcacheLineWidth:        128,
-    //DcacheByteSize:         32768,
-    //DcacheSetAssoc:         8,
-    //DcacheLineWidth:        128,
-    //FetchUserEn:            0,
-    //FetchUserWidth:         64
+    NrScoreboardEntries:    8,
+    IcacheByteSize:         16384,
+    IcacheSetAssoc:         4,
+    IcacheLineWidth:        256,
+    DcacheByteSize:         32768,
+    DcacheSetAssoc:         8,
+    DcacheLineWidth:        128,
+    DataUserEn:             1'b0,
+    FetchUserEn:            0,
+    FetchUserWidth:         64
   };
 
   localparam cva6_cfg_t cva6_cfg = build_config_pkg::build_config(cva6_user_cfg);
