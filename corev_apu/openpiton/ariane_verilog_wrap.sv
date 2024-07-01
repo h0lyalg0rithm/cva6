@@ -33,6 +33,7 @@ module ariane_verilog_wrap
   parameter bit                        TvalEn                = 1,
   parameter bit                        DebugEn               = 1,
   parameter bit                        NonIdemPotenceEn      = 0,
+  parameter int unsigned               XLEN                  = 64,
   // RISCV extensions
   parameter bit                        FpuEn                 = 1,
   parameter bit                        F16En                 = 0,
@@ -260,7 +261,8 @@ module ariane_verilog_wrap
     DcacheLineWidth:        128,
     DataUserEn:             1'b0,
     FetchUserEn:            0,
-    FetchUserWidth:         64
+    FetchUserWidth:         64,
+    XLEN:                   XLEN
   };
 
   localparam cva6_cfg_t cva6_cfg = build_config_pkg::build_config(cva6_user_cfg);
