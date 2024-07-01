@@ -45,6 +45,7 @@ module ariane_verilog_wrap
   parameter bit                        AExtEn                = 1,
   parameter bit                        BExtEn                = 0,
   parameter bit                        VExtEn                = 0,
+  parameter bit                        ZcmpExtEn             = 0,
   parameter bit                        ZiCondExtEn           = 0,
   parameter bit                        FExtEn                = 0,
   parameter bit                        DExtEn                = 0,
@@ -247,11 +248,33 @@ module ariane_verilog_wrap
     MaxOutstandingStores:   MaxOutstandingStores,
     DebugEn:                DebugEn,
     AxiBurstWriteEn:        AxiBurstWriteEn,
-    MemTidWidth:            2
+    MemTidWidth:            2,
+    FPGA_EN:                1'b0,
+    RVZCMP:                 ZcmpExtEn,
+    NrScoreboardEntries:    8//,
+    //IcacheByteSize:         16384,
+    //IcacheSetAssoc:         4,
+    //IcacheLineWidth:        128,
+    //DcacheByteSize:         32768,
+    //DcacheSetAssoc:         8,
+    //DcacheLineWidth:        128,
+    //FetchUserEn:            0,
+    //FetchUserWidth:         64
+  };
+
+  localparam cva6_cfg_t cva6_cfg = build_config_pkg::build_config(cva6_user_cfg);
+  localparam type rvfi_probes_instr_t = `RVFI_PROBES_INSTR_T(cva6_cfg);
+  localparam type rvfi_probes_csr_t = `RVFI_PROBES_CSR_T(cva6_cfg);
+  localparam type rvfi_probes_t = struct packed {
+    rvfi_probes_csr_t csr;
+    rvfi_probes_instr_t instr;
   };
 
   ariane #(
-    .CVA6Cfg    ( build_config_pkg::build_config(cva6_user_cfg) ),
+    .CVA6Cfg    ( cva6_cfg ),
+    .rvfi_probes_instr_t ( rvfi_probes_instr_t ),
+    .rvfi_probes_csr_t ( rvfi_probes_csr_t ),
+    .rvfi_probes_t ( rvfi_probes_t ),
     .noc_req_t  ( l15_req_t  ),
     .noc_resp_t ( l15_rtrn_t )
   ) ariane (
