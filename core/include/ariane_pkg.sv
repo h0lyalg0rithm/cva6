@@ -200,7 +200,8 @@ package ariane_pkg;
     FPU,        // 7
     FPU_VEC,    // 8
     CVXIF,      // 9
-    ACCEL       // 10
+    ACCEL,      // 10
+    CMO         // 11
   } fu_t;
 
   // Index of writeback ports
@@ -210,6 +211,7 @@ package ariane_pkg;
   localparam FPU_WB = 3;
   localparam ACC_WB = 4;
   localparam X_WB = 4;
+  localparam CMO_WB = 4;
 
   localparam EXC_OFF_RST = 8'h80;
 
@@ -366,6 +368,14 @@ package ariane_pkg;
     AMO_MAXDU,
     AMO_MIND,
     AMO_MINDU,
+    // Cache Management Operations
+    CMO_CLEANW,
+    CMO_FLUSHW,
+    CMO_INVALW,
+    CMO_ZEROW,
+    CMO_PREFETCH_IW,
+    CMO_PREFETCH_RW,
+    CMO_PREFETCH_WW,
     // Multiplications
     MUL,
     MULH,
@@ -642,6 +652,34 @@ package ariane_pkg;
   } amo_resp_t;
 
   localparam RVFI = cva6_config_pkg::CVA6ConfigRvfiTrace;
+
+  // ----------------------
+  // Cache Management Operations
+  // ----------------------
+
+  // CMO request to cache.
+  typedef enum logic [3:0] {
+      CMO_NONE       = 4'b0000,
+      CMO_CLEAN      = 4'b0001,
+      CMO_FLUSH      = 4'b0010,
+      CMO_INVAL      = 4'b0011,
+      CMO_ZERO       = 4'b0100,
+      CMO_PREFETCH_I = 4'b0101,
+      CMO_PREFETCH_R = 4'b0110,
+      CMO_PREFETCH_W = 4'b0111
+  } cmo_t;
+
+  typedef struct packed {
+      logic        req;                   // this request is valid
+      cmo_t        cmo_op;                // Cache Management Operation to perform
+      logic [63:0] address;               // target address
+  } cmo_req_t;
+
+  // CMO response from cache.
+  typedef struct packed {
+      logic        req_ready;  // target cache accepts the request
+      logic        ack;    // response is valid
+  } cmo_resp_t;
 
   // ----------------------
   // Arithmetic Functions

@@ -98,6 +98,9 @@ module issue_read_operands
     output logic [2:0] fpu_rm_o,
     // CSR result is valid - TO_BE_COMPLETED
     output logic [SUPERSCALAR:0] csr_valid_o,
+
+    input  logic [SUPERSCALAR:0] cmo_ready_i,
+    output logic [SUPERSCALAR:0] cmo_valid_o,
     // CVXIF result is valid - TO_BE_COMPLETED
     output logic [SUPERSCALAR:0] cvxif_valid_o,
     // CVXIF is ready - TO_BE_COMPLETED
@@ -120,7 +123,7 @@ module issue_read_operands
   localparam OPERANDS_PER_INSTR = CVA6Cfg.NrRgprPorts >> SUPERSCALAR;
 
   typedef struct packed {
-    logic none, load, store, alu, ctrl_flow, mult, csr, fpu, fpu_vec, cvxif, accel;
+    logic none, load, store, alu, ctrl_flow, mult, csr, fpu, fpu_vec, cvxif, accel, cmo;
   } fus_busy_t;
 
   logic [SUPERSCALAR:0] stall;
@@ -142,6 +145,7 @@ module issue_read_operands
   logic [             2:0] fpu_rm_q;
   logic [   SUPERSCALAR:0] lsu_valid_q;
   logic [   SUPERSCALAR:0] csr_valid_q;
+  logic [   SUPERSCALAR:0] cmo_valid_q;
   logic [   SUPERSCALAR:0] branch_valid_q;
   logic [   SUPERSCALAR:0] cvxif_valid_q;
   logic [            31:0] cvxif_off_instr_q;
@@ -167,6 +171,7 @@ module issue_read_operands
   assign branch_valid_o = branch_valid_q;
   assign lsu_valid_o = lsu_valid_q;
   assign csr_valid_o = csr_valid_q;
+  assign cmo_valid_o = cmo_valid_q;
   assign mult_valid_o = mult_valid_q;
   assign fpu_valid_o = fpu_valid_q;
   assign fpu_fmt_o = fpu_fmt_q;
@@ -253,6 +258,7 @@ module issue_read_operands
           fus_busy[1].store = 1'b1;
         end
         CVXIF: fus_busy[1].cvxif = 1'b1;
+        CMO:   fus_busy[1].cmo   = 1'b1;
       endcase
     end
   end
@@ -266,6 +272,7 @@ module issue_read_operands
         ALU: fu_busy[i] = fus_busy[i].alu;
         CTRL_FLOW: fu_busy[i] = fus_busy[i].ctrl_flow;
         CSR: fu_busy[i] = fus_busy[i].csr;
+        CMO: fu_busy[i] = fus_busy[i].cmo;
         MULT: fu_busy[i] = fus_busy[i].mult;
         FPU: fu_busy[i] = fus_busy[i].fpu;
         FPU_VEC: fu_busy[i] = fus_busy[i].fpu_vec;
@@ -451,6 +458,7 @@ module issue_read_operands
       fpu_fmt_q      <= '0;
       fpu_rm_q       <= '0;
       csr_valid_q    <= '0;
+      cmo_valid_q    <= '0;
       branch_valid_q <= '0;
     end else begin
       alu_valid_q    <= '0;
@@ -460,6 +468,7 @@ module issue_read_operands
       fpu_fmt_q      <= '0;
       fpu_rm_q       <= '0;
       csr_valid_q    <= '0;
+      cmo_valid_q    <= '0;
       branch_valid_q <= '0;
       // Exception pass through:
       // If an exception has occurred simply pass it through
@@ -481,6 +490,9 @@ module issue_read_operands
             end
             CSR: begin
               csr_valid_q[i] <= 1'b1;
+            end
+            CMO: begin
+              cmo_valid_q[i] <= 1'b1;
             end
             default: begin
               if (issue_instr_i[i].fu == FPU && CVA6Cfg.FpPresent) begin
@@ -504,6 +516,7 @@ module issue_read_operands
         mult_valid_q   <= '0;
         fpu_valid_q    <= '0;
         csr_valid_q    <= '0;
+        cmo_valid_q    <= '0;
         branch_valid_q <= '0;
       end
     end

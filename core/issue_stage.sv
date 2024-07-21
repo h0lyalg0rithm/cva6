@@ -84,6 +84,10 @@ module issue_stage
     output logic [2:0] fpu_rm_o,
     // CSR is valid - EX_STAGE
     output logic [SUPERSCALAR:0] csr_valid_o,
+
+    input logic [SUPERSCALAR:0] cmo_ready_i,
+    output logic [SUPERSCALAR:0] cmo_valid_o,
+
     // CVXIF FU is valid - EX_STAGE
     output logic [SUPERSCALAR:0] x_issue_valid_o,
     // CVXIF is FU ready - EX_STAGE

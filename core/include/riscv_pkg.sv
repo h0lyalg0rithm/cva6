@@ -239,6 +239,8 @@ package riscv;
   localparam OpcodeStoreFp = 7'b01_001_11;
   localparam OpcodeCustom1 = 7'b01_010_11;
   localparam OpcodeAmo = 7'b01_011_11;
+  localparam OpcodeCmoMisc = 7'b00_011_11;
+  localparam OpcodeCmoOp = 7'b00_100_11;
   localparam OpcodeOp = 7'b01_100_11;
   localparam OpcodeLui = 7'b01_101_11;
   localparam OpcodeOp32 = 7'b01_110_11;

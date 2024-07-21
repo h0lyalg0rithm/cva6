@@ -1362,6 +1362,34 @@ module decoder
         end
 
         // --------------------------------
+        // Cache Management Operations
+        // --------------------------------
+        riscv::OpcodeCmoMisc: begin
+          if(CVA6Cfg.RVCMO && (instr.itype.funct3 == 3'b010)) begin
+            instruction_o.fu = CMO;
+            unique case (instr.itype.imm)
+              12'h0: instruction_o.op = ariane_pkg::CMO_INVALW;
+              12'h1: instruction_o.op = ariane_pkg::CMO_FLUSHW;
+              12'h2: instruction_o.op = ariane_pkg::CMO_CLEANW;
+              12'h4: instruction_o.op = ariane_pkg::CMO_ZEROW;
+              default: illegal_instr = 1'b1;
+            endcase
+          end
+        end
+
+        riscv::OpcodeCmoOp: begin
+          if(CVA6Cfg.RVCMO && (instr.itype.funct3 == 3'b010)) begin
+            instruction_o.fu = CMO;
+            unique case (instr.instr[24:20])
+              5'h0: instruction_o.op = ariane_pkg::CMO_PREFETCH_IW;
+              5'h1: instruction_o.op = ariane_pkg::CMO_PREFETCH_RW;
+              5'h3: instruction_o.op = ariane_pkg::CMO_PREFETCH_WW;
+              default: illegal_instr = 1'b1;
+            endcase
+          end
+        end
+
+        // --------------------------------
         // Control Flow Instructions
         // --------------------------------
         riscv::OpcodeBranch: begin

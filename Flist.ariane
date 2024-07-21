@@ -102,6 +102,7 @@ core/amo_buffer.sv
 core/store_unit.sv
 core/cva6_mmu/cva6_tlb.sv
 core/commit_stage.sv
+core/cmo_fu.sv
 core/cache_subsystem/wt_dcache_ctrl.sv
 core/cache_subsystem/wt_dcache_mem.sv
 core/cache_subsystem/wt_dcache_missunit.sv

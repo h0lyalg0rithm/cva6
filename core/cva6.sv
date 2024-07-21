@@ -429,6 +429,17 @@ module cva6
   // CSR
   logic [SUPERSCALAR:0] csr_valid_id_ex;
   logic csr_hs_ld_st_inst_ex;
+  // CMO
+  logic [SUPERSCALAR:0] cmo_ready_id_ex;
+  logic  cmo_valid_ex_id;
+  logic  cmo_ready_ex_id;
+  logic [CVA6Cfg.TRANS_ID_BITS-1:0] cmo_trans_id_ex_id;
+  logic [CVA6Cfg.XLEN-1:0] cmo_result_ex_id;
+  cmo_req_t cmo_ic_req;
+  cmo_resp_t cmo_ic_resp;
+  cmo_req_t cmo_dc_req;
+  cmo_resp_t cmo_dc_resp;
+  exception_t cmo_exception_ex_id;
   // CVXIF
   logic [CVA6Cfg.TRANS_ID_BITS-1:0] x_trans_id_ex_id;
   logic [CVA6Cfg.XLEN-1:0] x_result_ex_id;
@@ -703,6 +714,15 @@ module cva6
     assign wt_valid_ex_id[ACC_WB] = acc_valid_ex_id;
   end
 
+  if (CVA6Cfg.RVCMO) begin
+    localparam int CMO_WB_PORT_ID = CMO_WB + (CVA6Cfg.CvxifEn || CVA6Cfg.EnableAccelerator ? 1 : 0);
+
+    assign trans_id_ex_id[CMO_WB_PORT_ID] = cmo_trans_id_ex_id;
+    assign wbdata_ex_id[CMO_WB_PORT_ID] = cmo_result_ex_id;
+    assign ex_ex_ex_id[CMO_WB_PORT_ID] = cmo_exception_ex_id;
+    assign wt_valid_ex_id[CMO_WB_PORT_ID] = cmo_valid_ex_id;
+  end
+
   if (CVA6Cfg.CvxifEn && CVA6Cfg.EnableAccelerator) begin : gen_err_xif_and_acc
     $error("X-interface and accelerator port cannot be enabled at the same time.");
   end
@@ -757,6 +777,9 @@ module cva6
       .fpu_rm_o              (fpu_rm_id_ex),
       // CSR
       .csr_valid_o           (csr_valid_id_ex),
+      // CMO
+      .cmo_ready_i           (cmo_ready_ex_id),
+      .cmo_valid_o           (cmo_valid_id_ex),
       // CVXIF
       .x_issue_valid_o       (x_issue_valid_id_ex),
       .x_issue_ready_i       (x_issue_ready_ex_id),

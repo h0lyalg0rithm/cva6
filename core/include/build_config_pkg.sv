@@ -64,6 +64,7 @@ package build_config_pkg;
     cfg.RVH = CVA6Cfg.RVH;
     cfg.RVZCB = CVA6Cfg.RVZCB;
     cfg.RVZCMP = CVA6Cfg.RVZCMP;
+    cfg.RVCMO  = CVA6Cfg.RVCMO;
     cfg.XFVec = CVA6Cfg.XFVec;
     cfg.CvxifEn = CVA6Cfg.CvxifEn;
     cfg.RVZiCond = CVA6Cfg.RVZiCond;
