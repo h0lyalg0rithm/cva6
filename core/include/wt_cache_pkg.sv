@@ -50,11 +50,12 @@ package wt_cache_pkg;
   // of that transaction
 
   // local interfaces between caches and L15 adapter
-  typedef enum logic [1:0] {
+  typedef enum logic [2:0] {
     DCACHE_STORE_REQ,
     DCACHE_LOAD_REQ,
     DCACHE_ATOMIC_REQ,
-    DCACHE_INT_REQ
+    DCACHE_INT_REQ,
+    DCACHE_CMO_REQ
   } dcache_out_t;
 
   typedef enum logic [2:0] {
@@ -62,7 +63,8 @@ package wt_cache_pkg;
     DCACHE_STORE_ACK,  // note: this may contain an invalidation vector, too
     DCACHE_LOAD_ACK,
     DCACHE_ATOMIC_ACK,
-    DCACHE_INT_ACK
+    DCACHE_INT_ACK,
+    DCACHE_CMO_ACK
   } dcache_in_t;
 
   typedef enum logic [0:0] {
@@ -77,6 +79,7 @@ package wt_cache_pkg;
     L15_IMISS_RQ   = 5'b10000,  // instruction fill request
     L15_STORE_RQ   = 5'b00001,  // store request
     L15_ATOMIC_RQ  = 5'b00110,  // atomic op
+    L15_CMO_RQ     = 5'b01100,  // cmo op
     //L15_CAS1_RQ     = 5'b00010, // compare and swap1 packet (OpenSparc atomics)
     //L15_CAS2_RQ     = 5'b00011, // compare and swap2 packet (OpenSparc atomics)
     //L15_SWAP_RQ     = 5'b00110, // swap packet (OpenSparc atomics)
@@ -91,22 +94,23 @@ package wt_cache_pkg;
 
   // from l1.5 (only marked subset is used)
   typedef enum logic [3:0] {
-    L15_LOAD_RET               = 4'b0000,  // load packet
+    L15_LOAD_RET               = 4'b00000,  // load packet
     // L15_INV_RET                = 4'b0011, // invalidate packet, not unique...
-    L15_ST_ACK                 = 4'b0100,  // store ack packet
+    L15_ST_ACK                 = 4'b00100,  // store ack packet
     //L15_AT_ACK                 = 4'b0011, // unused, not unique...
-    L15_INT_RET                = 4'b0111,  // interrupt packet
-    L15_TEST_RET               = 4'b0101,  // unused
-    L15_FP_RET                 = 4'b1000,  // unused
-    L15_IFILL_RET              = 4'b0001,  // instruction fill packet
-    L15_EVICT_REQ              = 4'b0011,  // eviction request
-    L15_ERR_RET                = 4'b1100,  // unused
-    L15_STRLOAD_RET            = 4'b0010,  // unused
-    L15_STRST_ACK              = 4'b0110,  // unused
-    L15_FWD_RQ_RET             = 4'b1010,  // unused
-    L15_FWD_RPY_RET            = 4'b1011,  // unused
-    L15_RSVD_RET               = 4'b1111,  // unused
-    L15_CPX_RESTYPE_ATOMIC_RES = 4'b1110   // custom type for atomic responses
+    L15_CPX_RESTYPE_CMO_RES    = 4'b00101,  // custom type for cmo responses
+    L15_INT_RET                = 4'b00111,  // interrupt packet
+    //L15_TEST_RET               = 4'b00101,  // unused
+    L15_FP_RET                 = 4'b01000,  // unused
+    L15_IFILL_RET              = 4'b00001,  // instruction fill packet
+    L15_EVICT_REQ              = 4'b00011,  // eviction request
+    L15_ERR_RET                = 4'b01100,  // unused
+    L15_STRLOAD_RET            = 4'b00010,  // unused
+    L15_STRST_ACK              = 4'b00110,  // unused
+    L15_FWD_RQ_RET             = 4'b01010,  // unused
+    L15_FWD_RPY_RET            = 4'b01011,  // unused
+    L15_RSVD_RET               = 4'b01111,  // unused
+    L15_CPX_RESTYPE_ATOMIC_RES = 4'b01110   // custom type for atomic responses
   } l15_rtrntypes_t;
 
   // swap endianess in a 64bit word

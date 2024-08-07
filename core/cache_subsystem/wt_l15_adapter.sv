@@ -183,6 +183,9 @@ module wt_l15_adapter
           DCACHE_ATOMIC_REQ: begin
             l15_req_o.l15_rqtype = L15_ATOMIC_RQ;
           end
+          DCACHE_CMO_REQ: begin
+            l15_req_o.l15_rqtype = L15_CMO_RQ;
+          end
           // DCACHE_INT_REQ: begin
           //     //TODO interrupt requests
           // end
@@ -285,6 +288,10 @@ module wt_l15_adapter
         end
         L15_CPX_RESTYPE_ATOMIC_RES: begin
           dcache_rtrn_o.rtype = DCACHE_ATOMIC_ACK;
+          dcache_rtrn_vld_o   = 1'b1;
+        end
+        L15_CPX_RESTYPE_CMO_RES: begin
+          dcache_rtrn_o.rtype = DCACHE_CMO_ACK;
           dcache_rtrn_vld_o   = 1'b1;
         end
         // L15_INT_RET:   begin
