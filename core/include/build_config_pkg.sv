@@ -160,6 +160,7 @@ package build_config_pkg;
     cfg.SharedTlbDepth = CVA6Cfg.SharedTlbDepth;
     cfg.VpnLen = VpnLen;
     cfg.PtLevels = PtLevels;
+    cfg.SUPERSCALAR = 0;
 
     return cfg;
   endfunction

@@ -168,7 +168,7 @@ package ariane_pkg;
   // leave as is (fails with >8 entries and wider fetch width)
   localparam int unsigned FETCH_FIFO_DEPTH = 4;
 
-  localparam int unsigned SUPERSCALAR = cva6_config_pkg::CVA6ConfigSuperscalarEn;
+  localparam int unsigned SUPERSCALAR = 0;//cva6_config_pkg::CVA6ConfigSuperscalarEn;
   localparam int unsigned SPECULATIVE_SB = SUPERSCALAR;
 
   typedef enum logic [2:0] {
@@ -678,7 +678,7 @@ package ariane_pkg;
   // CMO response from cache.
   typedef struct packed {
       logic        req_ready;  // target cache accepts the request
-      logic        ack;    // response is valid
+      logic        ack;        // response is valid
   } cmo_resp_t;
 
   // ----------------------

@@ -48,7 +48,7 @@ module ariane_verilog_wrap
   parameter bit                        BExtEn                = 0,
   parameter bit                        VExtEn                = 0,
   parameter bit                        ZcmpExtEn             = 0,
-  parameter bit                        CmoExtEn             = 0,
+  parameter bit                        CmoExtEn              = 1,
   parameter bit                        FExtEn                = 0,
   parameter bit                        DExtEn                = 0,
   parameter bit                        RVUEn                 = 1,

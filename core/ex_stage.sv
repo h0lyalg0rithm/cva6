@@ -28,7 +28,7 @@ module ex_stage
     parameter type icache_arsp_t = logic,
     parameter type icache_dreq_t = logic,
     parameter type icache_drsp_t = logic,
-    parameter type lsu_ctrl_t = logic
+    parameter type lsu_ctrl_t    = logic
 ) (
     // Subsystem Clock - SUBSYSTEM
     input logic clk_i,
@@ -571,15 +571,26 @@ module ex_stage
 
   if (CVA6Cfg.RVCMO) begin: gen_cmo
     fu_data_t cmo_data;
+    always_comb begin
+      cmo_data = cmo_valid_i ? fu_data_i[0] : '0;
+      //if (SUPERSCALAR) begin
+      //  if (cmo_valid_i[1]) begin
+      //    cmo_data = fu_data_i[1];
+      //  end
+      //end
+    end
+
     cmo_fu #(
-        .CVA6Cfg(CVA6Cfg)
+        .CVA6Cfg(CVA6Cfg),
+        .exception_t(exception_t),
+        .fu_data_t(fu_data_t)
     )cmo_fu_i (
         .clk_i,
         .rst_ni,
         .fu_data_i(cmo_data),
         .cmo_valid_i(cmo_valid_i),
         .cmo_ready_o(cmo_ready_o),
-        .cmo_trans_id_o(cmo_trans_id_o),
+        //.cmo_trans_id_o(cmo_trans_id_o),
         .cmo_exception_o(cmo_exception_o),
         .cmo_result_o(cmo_result_o),
         .cmo_valid_o(cmo_valid_o),

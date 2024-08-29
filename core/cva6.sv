@@ -430,9 +430,9 @@ module cva6
   logic [SUPERSCALAR:0] csr_valid_id_ex;
   logic csr_hs_ld_st_inst_ex;
   // CMO
-  logic [SUPERSCALAR:0] cmo_ready_id_ex;
-  logic  cmo_valid_ex_id;
-  logic  cmo_ready_ex_id;
+  logic cmo_ready_id_ex;
+  logic cmo_valid_id_ex;
+  logic cmo_ready_ex_id;
   logic [CVA6Cfg.TRANS_ID_BITS-1:0] cmo_trans_id_ex_id;
   logic [CVA6Cfg.XLEN-1:0] cmo_result_ex_id;
   cmo_req_t cmo_ic_req;
@@ -577,6 +577,9 @@ module cva6
 
   amo_req_t amo_req;
   amo_resp_t amo_resp;
+
+  cmo_req_t cmo_req;
+  cmo_resp_t cmo_resp;
   logic sb_full;
 
   // ----------------
@@ -890,6 +893,11 @@ module cva6
       .amo_valid_commit_i      (amo_valid_commit),
       .amo_req_o               (amo_req),
       .amo_resp_i              (amo_resp),
+      .cmo_valid_i             (cmo_valid_id_ex),
+      .cmo_ready_o             (cmo_ready_ex_id),
+      .cmo_valid_o             (cmo_valid_ex_id),
+      .cmo_dc_req_o            (cmo_req),
+      .cmo_dc_resp_i           (cmo_resp),
       // CoreV-X-Interface
       .x_valid_i               (x_issue_valid_id_ex),
       .x_ready_o               (x_issue_ready_ex_id),
@@ -1212,6 +1220,8 @@ module cva6
         .icache_rtrn_t(icache_rtrn_t),
         .dcache_req_i_t(dcache_req_i_t),
         .dcache_req_o_t(dcache_req_o_t),
+        .cmo_req_t(cmo_req_t),
+        .cmo_resp_t(cmo_resp_t),
         .NumPorts  (NumPorts),
         .noc_req_t (noc_req_t),
         .noc_resp_t(noc_resp_t)
@@ -1234,6 +1244,8 @@ module cva6
         // to commit stage
         .dcache_amo_req_i  (amo_req),
         .dcache_amo_resp_o (amo_resp),
+        .dcache_cmo_req_i  (cmo_req),
+        .dcache_cmo_resp_o (cmo_resp),
         // from PTW, Load Unit  and Store Unit
         .dcache_miss_o     (dcache_miss_cache_perf),
         .miss_vld_bits_o   (miss_vld_bits),

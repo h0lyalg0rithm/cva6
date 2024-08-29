@@ -450,7 +450,22 @@ module decoder
             3'b000: instruction_o.op = ariane_pkg::FENCE;
             // FENCE.I
             3'b001: instruction_o.op = ariane_pkg::FENCE_I;
-
+            // --------------------------------
+            // Cache Management Operations
+            // --------------------------------
+            3'b010: begin
+              if(CVA6Cfg.RVCMO) begin
+                instruction_o.fu = CMO;
+                instruction_o.rs1[4:0] = instr.stype.rs1;
+                unique case ({instr.stype.imm, instr.stype.rs2})
+                  12'h0: instruction_o.op = ariane_pkg::CMO_INVALW;
+                  12'h1: instruction_o.op = ariane_pkg::CMO_FLUSHW;
+                  12'h2: instruction_o.op = ariane_pkg::CMO_CLEANW;
+                  12'h4: instruction_o.op = ariane_pkg::CMO_ZEROW;
+                  default: illegal_instr = 1'b1;
+                endcase
+              end
+            end
             default: illegal_instr = 1'b1;
           endcase
         end
@@ -900,6 +915,15 @@ module decoder
               if (instr.instr[25] != 1'b0 && CVA6Cfg.XLEN == 32) illegal_instr_non_bm = 1'b1;
             end
           endcase
+          if (CVA6Cfg.RVCMO && instr.stype.funct3 == 3'b110 && instr.stype.imm0 == 5'b00000) begin
+            instruction_o.fu = CMO;
+            unique case (instr.stype.rs2)
+              3'd0: instruction_o.op = ariane_pkg::CMO_PREFETCH_IW;
+              3'd1: instruction_o.op = ariane_pkg::CMO_PREFETCH_RW;
+              3'd3: instruction_o.op = ariane_pkg::CMO_PREFETCH_WW;
+              default: illegal_instr = 1'b1;
+            endcase
+          end
           if (CVA6Cfg.RVB) begin
             unique case (instr.itype.funct3)
               3'b001: begin
@@ -1359,34 +1383,6 @@ module decoder
             instr.atype.rd,
             instr.atype.opcode
           };
-        end
-
-        // --------------------------------
-        // Cache Management Operations
-        // --------------------------------
-        riscv::OpcodeCmoMisc: begin
-          if(CVA6Cfg.RVCMO && (instr.itype.funct3 == 3'b010)) begin
-            instruction_o.fu = CMO;
-            unique case (instr.itype.imm)
-              12'h0: instruction_o.op = ariane_pkg::CMO_INVALW;
-              12'h1: instruction_o.op = ariane_pkg::CMO_FLUSHW;
-              12'h2: instruction_o.op = ariane_pkg::CMO_CLEANW;
-              12'h4: instruction_o.op = ariane_pkg::CMO_ZEROW;
-              default: illegal_instr = 1'b1;
-            endcase
-          end
-        end
-
-        riscv::OpcodeCmoOp: begin
-          if(CVA6Cfg.RVCMO && (instr.itype.funct3 == 3'b010)) begin
-            instruction_o.fu = CMO;
-            unique case (instr.instr[24:20])
-              5'h0: instruction_o.op = ariane_pkg::CMO_PREFETCH_IW;
-              5'h1: instruction_o.op = ariane_pkg::CMO_PREFETCH_RW;
-              5'h3: instruction_o.op = ariane_pkg::CMO_PREFETCH_WW;
-              default: illegal_instr = 1'b1;
-            endcase
-          end
         end
 
         // --------------------------------

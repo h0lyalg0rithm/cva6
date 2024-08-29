@@ -337,6 +337,7 @@ package config_pkg;
     vm_mode_t MODE_SV;
     int unsigned SV;
     int unsigned SVX;
+    bit unsigned SUPERSCALAR;
   } cva6_cfg_t;
 
   /// Empty configuration to sanity check proper parameter passing. Whenever
