@@ -137,6 +137,7 @@ module wt_l15_adapter
   assign l15_req_o.l15_data_next_entry      = '0; // unused in Ariane (only used for CAS atomic requests)
   assign l15_req_o.l15_csm_data             = '0; // unused in Ariane (only used for coherence domain restriction features)
   assign l15_req_o.l15_amo_op = dcache_data.amo_op;
+  assign l15_req_o.l15_cmo_op = dcache_data.cmo_op;
 
 
   // openpiton is big endian

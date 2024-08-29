@@ -32,6 +32,8 @@ module wt_cache_subsystem
     parameter type                   dcache_req_o_t = logic,
     parameter type                   icache_req_t   = logic,
     parameter type                   icache_rtrn_t  = logic,
+    parameter type                   cmo_req_t      = logic,
+    parameter type                   cmo_resp_t     = logic,
     parameter int unsigned           NumPorts       = 4,
     parameter type                   noc_req_t      = logic,
     parameter type                   noc_resp_t     = logic
@@ -59,6 +61,9 @@ module wt_cache_subsystem
     // AMO interface
     input amo_req_t dcache_amo_req_i,
     output amo_resp_t dcache_amo_resp_o,
+    // CMO interface
+    input cmo_req_t dcache_cmo_req_i,
+    output cmo_resp_t dcache_cmo_resp_o,
     // Request ports
     input dcache_req_i_t [NumPorts-1:0] dcache_req_ports_i,  // to/from LSU
     output dcache_req_o_t [NumPorts-1:0] dcache_req_ports_o,  // to/from LSU
@@ -93,6 +98,7 @@ module wt_cache_subsystem
     logic nc;  // noncacheable
     logic [CVA6Cfg.MEM_TID_WIDTH-1:0] tid;  // threadi id (used as transaction id in Ariane)
     ariane_pkg::amo_t amo_op;  // amo opcode
+    ariane_pkg::cmo_t cmo_op;  // cmo opcode
   };
 
   localparam type dcache_rtrn_t = struct packed {
@@ -164,6 +170,8 @@ module wt_cache_subsystem
       .wbuffer_not_ni_o(wbuffer_not_ni_o),
       .amo_req_i       (dcache_amo_req_i),
       .amo_resp_o      (dcache_amo_resp_o),
+      .cmo_req_i       (dcache_cmo_req_i),
+      .cmo_resp_o      (dcache_cmo_resp_o),
       .req_ports_i     (dcache_req_ports_i),
       .req_ports_o     (dcache_req_ports_o),
       .miss_vld_bits_o (miss_vld_bits_o),

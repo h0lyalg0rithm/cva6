@@ -42,6 +42,9 @@ module wt_dcache
     input  amo_req_t  amo_req_i,
     output amo_resp_t amo_resp_o,
 
+    input cmo_req_t cmo_req_i,
+    output cmo_resp_t cmo_resp_o,
+
     // Request ports
     input  dcache_req_i_t [NumPorts-1:0] req_ports_i,
     output dcache_req_o_t [NumPorts-1:0] req_ports_o,
@@ -148,6 +151,9 @@ module wt_dcache
       // amo interface
       .amo_req_i      (amo_req_i),
       .amo_resp_o     (amo_resp_o),
+      // cmo interface
+      .cmo_req_i      (cmo_req_i),
+      .cmo_resp_o     (cmo_resp_o),
       // miss handling interface
       .miss_req_i     (miss_req),
       .miss_ack_o     (miss_ack),

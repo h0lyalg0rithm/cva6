@@ -38,6 +38,9 @@ module wt_dcache_missunit
     // AMO interface
     input amo_req_t amo_req_i,
     output amo_resp_t amo_resp_o,
+    // CMO interface
+    input cmo_req_t cmo_req_i,
+    output cmo_resp_t cmo_resp_o,
     // miss handling interface (ld, ptw, wbuffer)
     input logic [NumPorts-1:0] miss_req_i,
     output logic [NumPorts-1:0] miss_ack_o,
@@ -106,14 +109,16 @@ module wt_dcache_missunit
   endfunction : paddrSizeAlign
 
   // controller FSM
-  typedef enum logic [2:0] {
+  typedef enum logic [3:0] {
     IDLE,
     DRAIN,
     AMO,
     FLUSH,
     STORE_WAIT,
     LOAD_WAIT,
-    AMO_WAIT
+    AMO_WAIT,
+    CMO,
+    CMO_WAIT
   } state_e;
   state_e state_d, state_q;
 
@@ -150,6 +155,8 @@ module wt_dcache_missunit
 
   logic inv_vld, inv_vld_all, cl_write_en;
   logic load_ack, store_ack, amo_ack;
+
+  logic cmo_sel, cmo_ack;
 
   logic [NumPorts-1:0] mshr_rdrd_collision_d, mshr_rdrd_collision_q;
   logic [NumPorts-1:0] mshr_rdrd_collision;
@@ -302,6 +309,7 @@ module wt_dcache_missunit
   assign mem_data_o.user = (CVA6Cfg.RVA && amo_sel) ? amo_user : miss_wuser_i[miss_port_idx];
   assign mem_data_o.size   = (CVA6Cfg.RVA && amo_sel) ? {1'b0, amo_req_i.size} : miss_size_i [miss_port_idx];
   assign mem_data_o.amo_op = (CVA6Cfg.RVA && amo_sel) ? amo_req_i.amo_op : AMO_NONE;
+  assign mem_data_o.cmo_op = (CVA6Cfg.RVCMO && cmo_sel) ? cmo_req_i.cmo_op : CMO_NONE;
 
   assign tmp_paddr         = (CVA6Cfg.RVA && amo_sel) ? amo_req_i.operand_a[CVA6Cfg.PLEN-1:0] : miss_paddr_i[miss_port_idx];
   assign mem_data_o.paddr = paddrSizeAlign(tmp_paddr, mem_data_o.size);
@@ -379,6 +387,11 @@ module wt_dcache_missunit
         DCACHE_INV_REQ: begin
           inv_vld     = mem_rtrn_i.inv.vld | mem_rtrn_i.inv.all;
           inv_vld_all = mem_rtrn_i.inv.all;
+        end
+        DCACHE_CMO_ACK: begin
+          if (CVA6Cfg.RVCMO) begin
+              cmo_ack = 1'b1;
+          end
         end
         // TODO:
         // DCACHE_INT_REQ: begin
@@ -465,6 +478,9 @@ module wt_dcache_missunit
           end else begin
             state_d = DRAIN;
           end
+        end else if (CVA6Cfg.RVCMO && cmo_req_i.req) begin
+          //$write("cmo valid req %d\n", cmo_req_i.req);
+          state_d = CMO;
           // we've got a miss to handle
         end else if (|miss_req_masked_d) begin
           // this is a write miss, just pass through (but check whether write collides with MSHR)
@@ -568,6 +584,32 @@ module wt_dcache_missunit
           amo_sel = 1'b1;
           if (amo_ack) begin
             amo_resp_o.ack = 1'b1;
+            state_d        = IDLE;
+          end
+        end
+      end
+      //////////////////////////////////
+      //////////////////////////////////
+      // send out cmo op request
+      CMO: begin
+        if (CVA6Cfg.RVCMO) begin
+          mem_data_o.rtype = DCACHE_CMO_REQ;
+          //cmo_sel          = 1'b1;
+          mem_data_req_o = 1'b1;
+          if (mem_data_ack_i) begin
+            state_d = CMO_WAIT;
+          end
+        end
+      end
+      //////////////////////////////////
+      // block and wait until CMO OP returns
+      CMO_WAIT: begin
+        if (CVA6Cfg.RVCMO) begin
+          cmo_sel = 1'b1;
+          cmo_ack = 1'b1;
+          if (cmo_ack) begin
+            $write("cmo ack\n");
+            cmo_resp_o.req_ready = 1'b1;
             state_d        = IDLE;
           end
         end
