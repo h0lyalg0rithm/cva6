@@ -479,7 +479,6 @@ module wt_dcache_missunit
             state_d = DRAIN;
           end
         end else if (CVA6Cfg.RVCMO && cmo_req_i.req) begin
-          //$write("cmo valid req %d\n", cmo_req_i.req);
           state_d = CMO;
           // we've got a miss to handle
         end else if (|miss_req_masked_d) begin
@@ -608,7 +607,6 @@ module wt_dcache_missunit
           cmo_sel = 1'b1;
           cmo_ack = 1'b1;
           if (cmo_ack) begin
-            $write("cmo ack\n");
             cmo_resp_o.req_ready = 1'b1;
             state_d        = IDLE;
           end
